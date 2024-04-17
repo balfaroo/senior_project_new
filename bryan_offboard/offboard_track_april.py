@@ -322,8 +322,8 @@ def main(args=None) -> None:
             #inRgb = qRgb.get()  # blocking call, will wait until a new data has arrived
             try:
                 #print('getting frame')
-                now = datetime.datetime.now()
-                print(now)
+                # now = datetime.datetime.now()
+                # print(now)
                 inRgb = qRgb.get().getCvFrame()
                 #color_img = np.asanyarray(inRgb)
                 # Retrieve 'bgr' (opencv format) frame
