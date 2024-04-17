@@ -17,6 +17,7 @@ xoutRgb.setStreamName("rgb")
 # Properties
 # very slow camRgb.setPreviewSize(1920, 1080)
 camRgb.setPreviewSize(640, 480)
+#camRgb.setPreviewKeepAspectRatio(True)
 #camRgb.setPreviewSize(400, 400) #down from 480 p bc of lag
 camRgb.setInterleaved(False)
 camRgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
@@ -41,16 +42,16 @@ cy = 561.630981
 fx = 1529.85254 ## focal lenghts most likely in mm, apparently on actual april robotics they use px
 fy = 1529.85254
 '''
-''' 640x480
+# 640x480
 cx = 331.85198975
 cy = 247.21032715
 fx = 509.9508667
 fy = 509.9508667
-'''
-cx = 207.4074707
-cy = 204.50645447
-fx = 318.7192688
-fy = 318.7192688
+
+# cx = 207.4074707
+# cy = 204.50645447
+# fx = 318.7192688
+# fy = 318.7192688
 L_paper = 150.0 ## mm
 
 
@@ -73,6 +74,7 @@ with dai.Device(pipeline) as device:
     qRgb = device.getOutputQueue(name="rgb", maxSize=1, blocking=False) #maxsize changed to 1 from 4
 
     while True:
+        start = datetime.datetime.now()
         #inRgb = qRgb.get()  # blocking call, will wait until a new data has arrived
         #print('getting frame')
         #now = datetime.datetime.now()
@@ -110,4 +112,5 @@ with dai.Device(pipeline) as device:
 
         if cv2.waitKey(1) == ord('q'):
             break
+        print(datetime.datetime.now() - start)
 
