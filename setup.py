@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'offboard_track_april = bryan_offboard.offboard_track_april:main'
+            'offboard_track_april = bryan_offboard.offboard_track_april:main',
+            'bottom_april = bryan_offboard.bottom_april:main'
         ],
     },
 )

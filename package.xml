@@ -20,7 +20,8 @@
   <exec_depend>depthai</exec_depend>
   <exec_depend>numpy</exec_depend>
   <exec_depend>cv2</exec_depend>
-  <exec_depend>apriltag</exec_depend>
+  <exec_depend>pupil_apriltags</exec_depend>
+  <exec_depend>datetime</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>
