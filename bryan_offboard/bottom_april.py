@@ -251,11 +251,12 @@ class OffboardControl(Node):
         #self.get_logger().info(f"Publishing position setpoints {[self.x_local, self.y_local, self.takeoff_height, np.degrees(local_yaw)]}")
 
     def listener_callback(self, msg):
-        if msg.found:
-            self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 0.0)
-            print('detected apriltag!')
-        else:
-            self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 15.0)
+        if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02:
+            if msg.found:
+                self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 0.0)
+                print('detected apriltag!')
+            else:
+                self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 15.0)
 
 
 
