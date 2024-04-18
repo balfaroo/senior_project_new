@@ -4,7 +4,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand, VehicleLocalPosition, VehicleStatus
-
+from bryan_msgs.msg import BottomCamera
 import depthai as dai
 import sys
 import numpy as np
@@ -104,6 +104,7 @@ class OffboardControl(Node):
 
         # Create a timer to publish control commands
         self.timer = self.create_timer(0.1, self.timer_callback)
+        self.subscription = self.create_subscription(BottomCamera, 'bottom_camera', self.listener_callback, 10)
     
 
 
@@ -208,11 +209,12 @@ class OffboardControl(Node):
 
 
     # for now this is fine since hardcoding a 90 degree turn, but would need to add an argument for yaw in future
-    def publish_position_setpoint(self, x: float, y: float, z: float): # now using x and y in body frame, using y = 0
+    def publish_position_setpoint(self, x: float, y: float, z: float, delta_yaw: float): # now using x and y in body frame, using y = 0
         """Publish the trajectory setpoint."""
         msg = TrajectorySetpoint()
         msg.position = [x, y, z]
-        msg.yaw = self.initial_heading
+        msg.yaw = self.vehicle_local_position.heading + np.radians(delta_yaw)
+        msg.yaw = np.mod(msg.yaw+np.pi, 2*np.pi)-np.pi
         #msg.yaw = 1.57079  # (90 degree)
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher.publish(msg)
@@ -248,36 +250,43 @@ class OffboardControl(Node):
         self.trajectory_setpoint_publisher.publish(msg)
         #self.get_logger().info(f"Publishing position setpoints {[self.x_local, self.y_local, self.takeoff_height, np.degrees(local_yaw)]}")
 
+    def listener_callback(self, msg):
+        if msg.found:
+            self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 0.0)
+            print('detected apriltag!')
+        else:
+            self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 15.0)
+
 
 
     def timer_callback(self) -> None:
         """Callback function for the timer."""
         self.publish_offboard_control_heartbeat_signal()
 
-        if self.offboard_setpoint_counter == 10:
+        if self.offboard_setpoint_counter == 15: ## raised delay to 1.5 s for heading to stabilitze
             self.engage_offboard_mode()
             self.arm()
 
 
 
         elif abs(self.vehicle_local_position.z - self.takeoff_height) > 0.02 and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-            self.publish_position_setpoint(0.0, 0.0, self.takeoff_height)
+            self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 0.0)
 
-        elif abs(self.vehicle_local_position.z - self.takeoff_height) >= 0.02 and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.offboard_setpoint_counter < 40:
-            self.publish_position_setpoint(0.0, 0.0, self.takeoff_height)
-            self.offboard_setpoint_counter += 1 # hover for 3 sec
+        # elif abs(self.vehicle_local_position.z - self.takeoff_height) >= 0.02 and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.offboard_setpoint_counter < 40:
+        #     self.publish_position_setpoint(0.0, 0.0, self.takeoff_height)
+        #     self.offboard_setpoint_counter += 1 # hover for 3 sec
 
         # elif self.dist_to_april == 0.0 or self.dist_to_april > 1.5 and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
         #     self.publish_position_setpoint(self.forward_step_size, 0.0, self.takeoff_height)
       
-        elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-            self.move_as_commanded()
+        # elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+        #     self.move_as_commanded()
 
         # elif self.dist_to_april <= 1.5 and self.dist_to_april != 0.0:
         #     self.land()
         #     exit(0)
 
-        if self.offboard_setpoint_counter < 11:
+        if self.offboard_setpoint_counter < 16:
             self.offboard_setpoint_counter += 1
             self.initial_heading = self.offboard_setpoint_counter+self.initial_heading/(self.offboard_setpoint_counter+1) + self.vehicle_local_position.heading/(self.offboard_setpoint_counter+1)
 
@@ -291,81 +300,84 @@ def main(args=None) -> None:
     print('Starting offboard control node...')
     rclpy.init(args=args)
     offboard_control = OffboardControl()
+    rclpy.spin(offboard_control)
+    offboard_control.destroy_node()
+    rclpy.shutdown()
 
 
    
 
-    detector = Detector(
-            families="tag36h11",
-            nthreads=1,
-            quad_decimate=1.0,
-            quad_sigma=0.0,
-            refine_edges=1,
-            decode_sharpening=0.25,
-            debug=0
-        )
+    # detector = Detector(
+    #         families="tag36h11",
+    #         nthreads=1,
+    #         quad_decimate=1.0,
+    #         quad_sigma=0.0,
+    #         refine_edges=1,
+    #         decode_sharpening=0.25,
+    #         debug=0
+    #     )
 
 
-    horizontal_distance = 0.1 # move in 10 cm increments (clip)
-    yaw_delta = 15 # search for tag in increments of 15 degree
-    spun = False
-    next_height = -0.55 ## 10 cm increments
-    camera = 0
-    cap = cv2.VideoCapture(camera)
-    while True:
-        #inRgb = qRgb.get()  # blocking call, will wait until a new data has arrived
-        try:
-            #print('getting frame')
-            # now = datetime.datetime.now()
-            # print(now)
-            ret, frame = cap.read()
-            #color_img = np.asanyarray(inRgb)
-            # Retrieve 'bgr' (opencv format) frame
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
-            detections = detector.detect(gray)
-            #detections = False
-            if detections:
-                    # d = detections[0]
-                    # center = d['center']
-                    # cX = int(center[0])
-                    # cY = int(center[1])
-                    # dx, dy = get_depth_coords(cX, cY, rgb_width, rgb_height, depth_width, depth_height)
-                    # dist = depth_image[dy, dx]*depth_scale
-                    # offboard_control.set_distance_to_april(dist)
-                    # offboard_control.set_detection(True)
-                d = detections[0]
-                center = d.center
-                center_x = int(center[0])
-                center_y = int(center[1])
+    # horizontal_distance = 0.1 # move in 10 cm increments (clip)
+    # yaw_delta = 15 # search for tag in increments of 15 degree
+    # spun = False
+    # next_height = -0.55 ## 10 cm increments
+    # camera = 0
+    # cap = cv2.VideoCapture(camera)
+    # while True:
+    #     #inRgb = qRgb.get()  # blocking call, will wait until a new data has arrived
+    #     try:
+    #         #print('getting frame')
+    #         # now = datetime.datetime.now()
+    #         # print(now)
+    #         ret, frame = cap.read()
+    #         #color_img = np.asanyarray(inRgb)
+    #         # Retrieve 'bgr' (opencv format) frame
+    #         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
+    #         detections = detector.detect(gray)
+    #         #detections = False
+    #         if detections:
+    #                 # d = detections[0]
+    #                 # center = d['center']
+    #                 # cX = int(center[0])
+    #                 # cY = int(center[1])
+    #                 # dx, dy = get_depth_coords(cX, cY, rgb_width, rgb_height, depth_width, depth_height)
+    #                 # dist = depth_image[dy, dx]*depth_scale
+    #                 # offboard_control.set_distance_to_april(dist)
+    #                 # offboard_control.set_detection(True)
+    #             d = detections[0]
+    #             center = d.center
+    #             center_x = int(center[0])
+    #             center_y = int(center[1])
 
-                inst_x, inst_y = offboard_control.april_horiz_distance(center_x, center_y, frame)
+    #             inst_x, inst_y = offboard_control.april_horiz_distance(center_x, center_y, frame)
 
-                # pose_R = d.pose_R
-                #     #yaw = np.degrees(np.arctan(pose_R[0][1]/pose_R[0][0]))
-                #     #yaw = np.degrees(np.arctan(pose_R[1][2]/pose_R[2][2]))
-                # yaw = -np.degrees(np.arcsin(pose_R[0][2])) ## this the one chief]
+    #             # pose_R = d.pose_R
+    #             #     #yaw = np.degrees(np.arctan(pose_R[0][1]/pose_R[0][0]))
+    #             #     #yaw = np.degrees(np.arctan(pose_R[1][2]/pose_R[2][2]))
+    #             # yaw = -np.degrees(np.arcsin(pose_R[0][2])) ## this the one chief]
 
-                print('moving to tag')
+    #             print('moving to tag')
 
-                inst_x = min(inst_x, horizontal_distance)
-                inst_y = min(inst_y, horizontal_distance)
-                offboard_control.set_position_inst(inst_x, inst_y, 0.0, next_height)
-                next_height -= 10
-                #print('yaw ,', yaw, ' degrees')
-            else:
-                offboard_control.set_position_inst(0.0, 0.0, yaw_delta)
-                print('yawing to find tag')
+    #             inst_x = min(inst_x, horizontal_distance)
+    #             inst_y = min(inst_y, horizontal_distance)
+    #             offboard_control.set_position_inst(inst_x, inst_y, 0.0, next_height)
+    #             next_height -= 10
+    #             #print('yaw ,', yaw, ' degrees')
+    #         else:
+    #             offboard_control.set_position_inst(0.0, 0.0, yaw_delta)
+    #             print('yawing to find tag')
             
             
-            rclpy.spin_once(offboard_control)
-            spun = True
+    #         rclpy.spin_once(offboard_control)
+    #         spun = True
 
-        except Exception as e:     
-            print(e)           
-            offboard_control.destroy_node()
-            if spun:
-                rclpy.shutdown()
-            sys.exit(0)
+    #     except Exception as e:     
+    #         print(e)           
+    #         offboard_control.destroy_node()
+    #         if spun:
+    #             rclpy.shutdown()
+    #         sys.exit(0)
                 
 
 
