@@ -108,26 +108,45 @@ class OffboardControl(Node):
     
 
 
-    def get_april_horiz_distance(self, cx, cy, frame):
+    def get_april_horiz_distance(self, cx, cy):
         h_cam = 0.063
         l_cam = 0.063
         h_fov = 41
         v_fov = 66
 
-        v_ang_perpx = frame.shape[0]/v_fov
-        h_ang_perpx = frame.shape[1]/h_fov
+        ncols = 720
+        nrows = 1280
+
+        # v_ang_perpx = frame.shape[0]/v_fov
+        # h_ang_perpx = frame.shape[1]/h_fov
+
+        v_ang_perpx = nrwos/v_fov
+        h_ang_perpx =  ncols/h_fov
         
         h_of = 0.158
 
-        z = abs(self.vehicle_local_position.z)
+        z = abs(self.takeoff_height)
         z_leg = z - h_of
         z_cam = z_leg+h_cam
 
-        alpha_h = (cx-frame.shape[1]/2)*h_ang_perpx
-        alpha_v = (cx-frame.shape[0]/2)*v_ang_perpx
+        alpha_h = (cx-ncols/2)*h_ang_perpx
+        alpha_v = (cy-nrows/2)*v_ang_perpx
+        
+        if z_leg < 0.1:
 
-        dx = z_cam*np.tan(np.radians(45)+alpha_v)-l_cam # alpha_v b/c x for the drone is forward/up in the picture 
-        dy = z_cam*np.tan(np.radians(45)+alpha_h)-l_cam
+            dx = z_cam*np.tan(np.radians(45)+alpha_v)-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
+            dy = z_cam*np.tan(np.radians(45)+alpha_h)-l_cam
+        
+        else: # clipping to only go down by 10 cm increments
+
+            z_leg = 0.1
+            z_cam = z_leg+h_cam
+
+            dx = z_cam*np.tan(np.radians(45)+alpha_v)-l_cam
+            dy = z_cam*np.tan(np.radians(45)+alpha_h)-l_cam
+
+            # do the calculations as if we were only 10 cm in the air
+            
 
         return dx, dy
 
@@ -139,10 +158,9 @@ class OffboardControl(Node):
         self.z_inst = z_b
         #self.yaw_inst = np.mod(self.yaw_inst+np.pi, 2*np.pi) - np.pi
 
-    def body_to_local(self):
-        hding = self.vehicle_local_position.heading # + self.yaw_inst maybe don't need to add yaw since you haven't rotated yet
-        return np.cos(hding)*self.dx_inst+np.sin(hding)*self.dy_inst, -np.sin(hding)*self.dx_inst+np.cos(hding)*self.dy_inst, np.mod(hding+self.yaw_inst+np.pi, 2*np.pi) - np.pi
-
+    # def body_to_local(self): # outdated
+    #     hding = self.vehicle_local_position.heading # + self.yaw_inst maybe don't need to add yaw since you haven't rotated yet
+    #     return np.cos(hding)*self.dx_inst+np.sin(hding)*self.dy_inst, -np.sin(hding)*self.dx_inst+np.cos(hding)*self.dy_inst, np.mod(hding+self.yaw_inst+np.pi, 2*np.pi) - np.pi
 
     # def body_to_local_yaw(self, body_yaw: float): outdated
     #     yaw = self.initial_heading+body_yaw
@@ -156,7 +174,11 @@ class OffboardControl(Node):
         self.april_spotted = detected
 
 
+    def body_to_local(self, x, y):
+        hding = self.vehicle_local_position.heading # + self.yaw_inst maybe don't need to add yaw since you haven't rotated yet
+        return np.cos(hding)*x+np.sin(hding)*y, -np.sin(hding)*x+np.cos(hding)*y
 
+    
     # use body to local now
     # def convert_forward_body_to_local(self, forward_inst: float, new_yaw: float):
     #     #heading = self.vehicle_local_position.heading
@@ -209,9 +231,11 @@ class OffboardControl(Node):
 
 
     # for now this is fine since hardcoding a 90 degree turn, but would need to add an argument for yaw in future
-    def publish_position_setpoint(self, x: float, y: float, z: float, delta_yaw: float): # now using x and y in body frame, using y = 0
+    def publish_position_setpoint(self, x: float, y: float, z: float, delta_yaw: float): # now using x and y in body frame, using y = 0, x and y as dx and dy
         """Publish the trajectory setpoint."""
         msg = TrajectorySetpoint()
+        x = self.vehicle_local_position.x + x
+        y = self.vehicle_local_position.y + y
         msg.position = [x, y, z]
         msg.yaw = self.vehicle_local_position.heading + np.radians(delta_yaw)
         msg.yaw = np.mod(msg.yaw+np.pi, 2*np.pi)-np.pi
@@ -253,10 +277,13 @@ class OffboardControl(Node):
     def listener_callback(self, msg):
         if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02:
             if msg.found:
-                self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 0.0)
+                dx, dy = self.get_april_horiz_distance(msg.cx, msg.cy)
+                self.takeoff_height += 0.1 # decrease altitude by 10 cm
+                dx, dy, = self.body_to_local(dx, dy)
+                self.publish_position_setpoint(dx, dy, self.takeoff_height, 0.0)
                 print('detected apriltag!')
             else:
-                self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 15.0)
+                self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 5.0) # last argument angle increment in degrees
 
 
 

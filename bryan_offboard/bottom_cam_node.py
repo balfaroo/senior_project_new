@@ -42,10 +42,12 @@ class BottomCameraNode(Node):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         detections = self.detector.detect(gray)
         msg = BottomCamera()
-        msg.dx = 0.0
-        msg.dy = 0.0
+        msg.cx = -1
+        msg.cy = -1
         if detections:
             msg.found = True
+            msg.cx = detections[0].center[0]
+            msg.cy = detections[0].center[1]
         else:
             msg.found = False
         self.publisher.publish(msg)

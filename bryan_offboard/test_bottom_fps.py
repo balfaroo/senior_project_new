@@ -31,6 +31,7 @@ while True:
     # Retrieve 'bgr' (opencv format) frame
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
     detections = detector.detect(gray)
+    print(gray.shape)
     #detections = False
     if detections:
             # d = detections[0]
