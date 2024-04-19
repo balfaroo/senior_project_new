@@ -112,47 +112,7 @@ class OffboardControl(Node):
     
 
 
-    def get_april_horiz_distance(self, cx, cy):
-        h_cam = 0.063
-        l_cam = 0.063
-        h_fov = 41
-        v_fov = 66
-
-        ncols = 720
-        nrows = 1280
-
-        # v_ang_perpx = frame.shape[0]/v_fov
-        # h_ang_perpx = frame.shape[1]/h_fov
-
-        v_ang_perpx = nrows/v_fov
-        h_ang_perpx =  ncols/h_fov
-        
-        h_of = 0.158
-
-        z = abs(self.takeoff_height)
-        z_leg = z - h_of
-        z_cam = z_leg+h_cam
-
-        alpha_h = (cx-ncols/2)*h_ang_perpx
-        alpha_v = (cy-nrows/2)*v_ang_perpx
-        
-        if z_leg < 0.1:
-
-            dx = z_cam*np.tan(np.radians(45)+alpha_v)-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
-            dy = z_cam*np.tan(np.radians(45)+alpha_h)-l_cam
-        
-        else: # clipping to only go down by 10 cm increments
-
-            z_leg = 0.1
-            z_cam = z_leg+h_cam
-
-            dx = z_cam*np.tan(np.radians(45)+alpha_v)-l_cam
-            dy = z_cam*np.tan(np.radians(45)+alpha_h)-l_cam
-
-            # do the calculations as if we were only 10 cm in the air
-            
-
-        return dx, dy
+    
 
     # instructions provided in body frame
     def set_position_inst(self, x_b: float, y_b: float, yaw_b: float, z_b = -0.65):
@@ -279,16 +239,65 @@ class OffboardControl(Node):
         self.trajectory_setpoint_publisher.publish(msg)
         #self.get_logger().info(f"Publishing position setpoints {[self.x_local, self.y_local, self.takeoff_height, np.degrees(local_yaw)]}")
 
+    def get_april_horiz_distance(self, cx, cy):
+        h_cam = 0.063
+        l_cam = 0.063
+        h_fov = 41
+        v_fov = 66
+
+        ncols = 720
+        nrows = 1280
+
+        # v_ang_perpx = frame.shape[0]/v_fov
+        # h_ang_perpx = frame.shape[1]/h_fov
+
+        v_ang_perpx = v_fov/nrows
+        h_ang_perpx =  h_fov/ncols
+        
+        h_of = 0.158
+
+        z = abs(self.takeoff_height)
+        z_leg = z - h_of
+        z_cam = z_leg+h_cam
+
+        alpha_h = (cx-ncols/2)*h_ang_perpx
+        alpha_v = -(cy-nrows/2)*v_ang_perpx
+
+        # print('alpha h ', alpha_h)
+        # print('alpha v ', alpha_v)
+        
+        if z_leg: # for now just checking dx and dy
+
+            dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
+            dy = z_cam*np.tan(np.radians(45+alpha_h))-l_cam
+            
+        else: # clipping to only go down by 10 cm increments
+
+            z_leg = 0.1
+            z_cam = z_leg+h_cam
+
+            dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
+            dy = z_cam*np.tan(np.radians(45+alpha_h))-l_cam
+
+            # do the calculations as if we were only 10 cm in the air
+
+        # print('dx ', dx, ' dy ', dy)
+            
+
+        return dx, dy
+
     def listener_callback(self, msg):
         if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02: # only move once at the appropriate heigt
             if msg.found:
                 dx, dy = self.get_april_horiz_distance(msg.cx, msg.cy)
                 self.takeoff_height += 0.1 # decrease altitude by 10 cm
                 dx, dy, = self.body_to_local(dx, dy)
-                self.publish_position_setpoint(dx, dy, self.takeoff_height, 0.0)
+                if abs(self.vehicle_local_position.x - self.x_local) < 0.05 and abs(self.vehicle_local_position.y - self.y_local) < 0.05: # only set new points if previous ones have been reached
+                   print('moving by ', dx, dy)
+                   self.publish_position_setpoint(dx, dy, self.takeoff_height, 0.0)
                 print('detected apriltag!')
             else:
-                self.target_heading += np.radians(7.5)
+                self.target_heading += np.radians(5)
                 self.target_heading = np.mod(self.target_heading + np.pi, 2*np.pi) - np.pi
                 self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 0.0) # last argument angle increment in degrees
 
