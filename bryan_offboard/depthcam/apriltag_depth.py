@@ -140,7 +140,7 @@ with dai.Device(pipeline) as device:
                     topLeft = dai.Point2f(-5, -5)
                     bottomRight = dai.Point2f(5, 5)
 
-                    topLeft = dai.Point2f(depthFrameColor.shape[1]/2 - 5, depthFrameColor.shape[0]/2-5)
+                    topLeft = dai.Point2f(depthFrameColor.shape[1]/2 - 5, depthFrameColor.shape[0]/2-5)  ## getting depth of middle of frame if apriltag is there
                     bottomRight = dai.Point2f(depthFrameColor.shape[1]/2+5, depthFrameColor.shape[0]/2+5)
                     xmin = -5
                     xmax = 5

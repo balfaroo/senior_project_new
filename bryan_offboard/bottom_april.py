@@ -102,6 +102,10 @@ class OffboardControl(Node):
         self.x_local = 0.0 # vars for tracking positions
         self.y_local = 0.0
 
+        self.target_heading = 0.0
+
+        self.pause_counter = 0 # pause to allow drone to geti
+
         # Create a timer to publish control commands
         self.timer = self.create_timer(0.1, self.timer_callback)
         self.subscription = self.create_subscription(BottomCamera, 'bottom_camera', self.listener_callback, 10)
@@ -120,7 +124,7 @@ class OffboardControl(Node):
         # v_ang_perpx = frame.shape[0]/v_fov
         # h_ang_perpx = frame.shape[1]/h_fov
 
-        v_ang_perpx = nrwos/v_fov
+        v_ang_perpx = nrows/v_fov
         h_ang_perpx =  ncols/h_fov
         
         h_of = 0.158
@@ -231,13 +235,14 @@ class OffboardControl(Node):
 
 
     # for now this is fine since hardcoding a 90 degree turn, but would need to add an argument for yaw in future
-    def publish_position_setpoint(self, x: float, y: float, z: float, delta_yaw: float): # now using x and y in body frame, using y = 0, x and y as dx and dy
+    def publish_position_setpoint(self, x: float, y: float, z: float, delta_yaw: float): # now using x and y in body frame, using y = 0, x and y as dx and dy, yaw as delta
         """Publish the trajectory setpoint."""
         msg = TrajectorySetpoint()
-        x = self.vehicle_local_position.x + x
-        y = self.vehicle_local_position.y + y
-        msg.position = [x, y, z]
-        msg.yaw = self.vehicle_local_position.heading + np.radians(delta_yaw)
+        self.x_local += x
+        self.y_local += y
+        # y = self.vehicle_local_position.y + y 
+        msg.position = [self.x_local, self.y_local, z]
+        msg.yaw = self.target_heading + np.radians(delta_yaw) ## based on this syntax, may actually end up not using delta_yaw  != 0.0
         msg.yaw = np.mod(msg.yaw+np.pi, 2*np.pi)-np.pi
         #msg.yaw = 1.57079  # (90 degree)
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
@@ -275,7 +280,7 @@ class OffboardControl(Node):
         #self.get_logger().info(f"Publishing position setpoints {[self.x_local, self.y_local, self.takeoff_height, np.degrees(local_yaw)]}")
 
     def listener_callback(self, msg):
-        if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02:
+        if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02: # only move once at the appropriate heigt
             if msg.found:
                 dx, dy = self.get_april_horiz_distance(msg.cx, msg.cy)
                 self.takeoff_height += 0.1 # decrease altitude by 10 cm
@@ -283,7 +288,9 @@ class OffboardControl(Node):
                 self.publish_position_setpoint(dx, dy, self.takeoff_height, 0.0)
                 print('detected apriltag!')
             else:
-                self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 5.0) # last argument angle increment in degrees
+                self.target_heading += np.radians(7.5)
+                self.target_heading = np.mod(self.target_heading + np.pi, 2*np.pi) - np.pi
+                self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 0.0) # last argument angle increment in degrees
 
 
 
@@ -292,13 +299,14 @@ class OffboardControl(Node):
         self.publish_offboard_control_heartbeat_signal()
 
         if self.offboard_setpoint_counter == 15: ## raised delay to 1.5 s for heading to stabilitze
+            self.target_heading = self.vehicle_local_position.heading
             self.engage_offboard_mode()
             self.arm()
 
 
 
         elif abs(self.vehicle_local_position.z - self.takeoff_height) > 0.02 and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-            self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, 0.0)
+            self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
 
         # elif abs(self.vehicle_local_position.z - self.takeoff_height) >= 0.02 and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.offboard_setpoint_counter < 40:
         #     self.publish_position_setpoint(0.0, 0.0, self.takeoff_height)

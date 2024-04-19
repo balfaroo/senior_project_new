@@ -46,12 +46,13 @@ class BottomCameraNode(Node):
         msg.cy = -1
         if detections:
             msg.found = True
-            msg.cx = detections[0].center[0]
-            msg.cy = detections[0].center[1]
+            msg.cx = int(detections[0].center[0])
+            msg.cy =int(detections[0].center[1])
+            print('found apriltag')
         else:
             msg.found = False
         self.publisher.publish(msg)
-        print('published message')
+        #print('published message')
         
 
 

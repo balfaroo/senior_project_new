@@ -78,9 +78,9 @@ with dai.Device(pipeline) as device:
         # Available color maps: https://docs.opencv.org/3.4/d3/d50/group__imgproc__colormap.html
         frame = cv2.applyColorMap(frame, cv2.COLORMAP_JET)
         #cv2.imshow("disparity_color", frame)
-        #cv2.imshow("rgb", qRgb.get().getCvFrame())
+        cv2.imshow("rgb", qRgb.get().getCvFrame())
         #print(datetime.datetime.now()-now)
-        print(frame.shape)
+        # print(frame.shape)
 
         if cv2.waitKey(1) == ord('q'):
             break

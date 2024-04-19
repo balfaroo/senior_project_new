@@ -97,7 +97,7 @@ with dai.Device(pipeline) as device:
             frame = cv2.applyColorMap(frame, cv2.COLORMAP_JET)
 
             ## rgb capture
-            inRgb = qDepth.get().getCvFrame()
+            inRgb = qRgb.get().getCvFrame()
             rgb_frames.append(inRgb)
             depth_frames.append(frame)
         except KeyboardInterrupt:
