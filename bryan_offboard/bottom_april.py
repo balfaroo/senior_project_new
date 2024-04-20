@@ -207,7 +207,7 @@ class OffboardControl(Node):
         #msg.yaw = 1.57079  # (90 degree)
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher.publish(msg)
-        #self.get_logger().info(f"Publishing position setpoints {[x, y, z]}")
+        self.get_logger().info(f"Publishing position setpoints {[x, y, z]}")
 
     def publish_vehicle_command(self, command, **params) -> None:
         """Publish a vehicle command."""
@@ -314,9 +314,12 @@ class OffboardControl(Node):
             self.arm()
 
 
+        elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: # needed so that it stays hovering even when close
+            self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, self.target_heading)
+        
 
-        elif abs(self.vehicle_local_position.z - self.takeoff_height) > 0.02 and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-            self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
+        # elif abs(self.vehicle_local_position.z - self.takeoff_height) > 0.02 and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+        #     self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, self.target_heading)
 
         # elif abs(self.vehicle_local_position.z - self.takeoff_height) >= 0.02 and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.offboard_setpoint_counter < 40:
         #     self.publish_position_setpoint(0.0, 0.0, self.takeoff_height)
