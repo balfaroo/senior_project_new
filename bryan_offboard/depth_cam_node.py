@@ -7,6 +7,7 @@ import cv2
 from pupil_apriltags import Detector, Detection
 from bryan_msgs.msg import BottomCamera
 from px4_msgs.msg import VehicleLocalPosition
+import depthai as dai
 
 class DepthCameraNode(Node):
     """Node for controlling a vehicle in offboard mode."""
