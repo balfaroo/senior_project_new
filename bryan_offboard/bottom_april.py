@@ -87,7 +87,7 @@ class OffboardControl(Node):
         self.offboard_setpoint_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
-        self.takeoff_height = -0.65 # raised from -0.4 and 0.55
+        self.takeoff_height = -0.5 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
         self.april_spotted = False
         self.dist_to_april = 0.0
         self.forward_dist = 0.0
@@ -140,7 +140,7 @@ class OffboardControl(Node):
 
     def body_to_local(self, x, y):
         hding = self.vehicle_local_position.heading # + self.yaw_inst maybe don't need to add yaw since you haven't rotated yet
-        return np.cos(hding)*x+np.sin(hding)*y, -np.sin(hding)*x+np.cos(hding)*y
+        return np.cos(hding)*x-np.sin(hding)*y, np.sin(hding)*x+np.cos(hding)*y
 
     
     # use body to local now
