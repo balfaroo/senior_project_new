@@ -5,6 +5,33 @@ import depthai as dai
 import numpy as np
 from pupil_apriltags import Detector
 
+def get_depth_coords(x_rgb, y_rgb, rgb_width = 640, rgb_height = 480, depth_width = 640, depth_height = 400):
+    RGB_FOV_HORIZONTAL = 50 # deg
+    RGB_FOV_VERITCAL = 38
+
+    DEPTH_FOV_HORIZONTAL = 80
+    DEPTH_FOV_VERTICAL = 55
+
+    # center of rgb
+    half_x = rgb_width/2
+    half_y = rgb_height/2
+
+    rgb_hz_angpp = RGB_FOV_HORIZONTAL/rgb_width
+    rgb_vt_angpp = RGB_FOV_VERITCAL/rgb_height
+
+    angle_horiz = int((x_rgb - half_x)*(rgb_hz_angpp))
+    angle_vert = int((y_rgb-half_y)*(rgb_vt_angpp))
+
+    ## center of depth
+    half_x = depth_width/2
+    half_y = depth_height/2
+
+    angle_per_depth_px_horizontal = DEPTH_FOV_HORIZONTAL/depth_width
+    angle_per_depth_px_vertical = DEPTH_FOV_VERTICAL/depth_height
+    depth_x = int(half_x + angle_horiz/angle_per_depth_px_horizontal)
+    depth_y = int(half_y + angle_vert/angle_per_depth_px_vertical)
+
+    return depth_x, depth_y
 
 stepSize = 0.05
 
@@ -122,9 +149,10 @@ with dai.Device(pipeline) as device:
             center = d.center
             cx = center[0]
             cy = center[1]
+            dx, dy = get_depth_coords(cx, cy)
             # print('cx pcnt dif ', abs(cx-inRgb.shape[1]/2)/(inRgb.shape[1]/2))
             #print(center)
-            close = abs(cx-inRgb.shape[1]/2)/(inRgb.shape[1]/2) <= 0.1 and abs(cy-inRgb.shape[0]/2)/(inRgb.shape[0]/2) <= 0.1
+            close = True #abs(cx-inRgb.shape[1]/2)/(inRgb.shape[1]/2) <= 0.1 and abs(cy-inRgb.shape[0]/2)/(inRgb.shape[0]/2) <= 0.1
             print(depthFrameColor.shape)
             if close:
                 #print('close')
@@ -140,8 +168,8 @@ with dai.Device(pipeline) as device:
                     topLeft = dai.Point2f(-5, -5)
                     bottomRight = dai.Point2f(5, 5)
 
-                    topLeft = dai.Point2f(depthFrameColor.shape[1]/2 - 5, depthFrameColor.shape[0]/2-5)  ## getting depth of middle of frame if apriltag is there
-                    bottomRight = dai.Point2f(depthFrameColor.shape[1]/2+5, depthFrameColor.shape[0]/2+5)
+                    topLeft = dai.Point2f(dx - 5, dy-5)  ## getting depth of middle of frame if apriltag is there
+                    bottomRight = dai.Point2f(dx+5, dy+5)
                     xmin = -5
                     xmax = 5
                     ymin = -5

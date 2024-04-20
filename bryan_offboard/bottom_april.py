@@ -290,10 +290,11 @@ class OffboardControl(Node):
         if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02: # only move once at the appropriate heigt
             if msg.found:
                 dx, dy = self.get_april_horiz_distance(msg.cx, msg.cy)
+                print('body dx, dy: ', dx, dy)
                 self.takeoff_height += 0.1 # decrease altitude by 10 cm
                 dx, dy, = self.body_to_local(dx, dy)
                 if abs(self.vehicle_local_position.x - self.x_local) < 0.05 and abs(self.vehicle_local_position.y - self.y_local) < 0.05: # only set new points if previous ones have been reached
-                   print('moving by ', dx, dy)
+                   print('local dx, dy ', dx, dy)
                    self.publish_position_setpoint(dx, dy, self.takeoff_height, 0.0)
                 print('detected apriltag!')
             else:

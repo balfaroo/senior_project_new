@@ -23,6 +23,9 @@
   <exec_depend>cv2</exec_depend>
   <exec_depend>pupil_apriltags</exec_depend>
   <exec_depend>datetime</exec_depend>
+  <exec_depend>os</exec_depend>
+  <exec_depend>glob</exec_depend>
+  <exec_depend>ros2launch</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>
