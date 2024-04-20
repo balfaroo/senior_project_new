@@ -26,7 +26,9 @@ setup(
             'offboard_track_april = bryan_offboard.offboard_track_april:main',
             'bottom_april = bryan_offboard.bottom_april:main',
             'bottom_cam_node = bryan_offboard.bottom_cam_node:main',
-            'bottom_cam_node_listener = bryan_offboard.bottom_cam_node_listener:main'
+            'bottom_cam_node_listener = bryan_offboard.bottom_cam_node_listener:main',
+            'depth_cam_node = bryan_offboard.depth_cam_node:main',
+            'depth_cam_listener = bryan_offboard.depth_cam_listener:main'
         ],
     },
 )
