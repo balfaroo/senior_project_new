@@ -178,14 +178,17 @@ class OffboardControl(Node):
                 dx = msg.dx/1000
                 dy = msg.dy/1000
 
-                if dx>1.5 and abs(self.vehicle_local_position.x-self.x_local) < 0.05:
-                    self.x_local+=0.1
+                if dx>1.5 and abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05:
+                    dx, dy = self.body_to_local(0.2, 0.0)
+                    self.x_local+=dx
+                    self.y_local+=dy
                     self.x_local_old = self.x_local
-                    self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, 0.0)
+                    self.y_local_old = self.y_local
+                    self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
 
                 elif dx<=1.5:
                     self.takeoff_height = 0.0
-                    self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, 0.0)
+                    self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
 
             else:
                 pass
