@@ -5,8 +5,38 @@ import sys
 import numpy as np
 import cv2
 from pupil_apriltags import Detector, Detection
-from bryan_msgs.msg import BottomCamera
-from px4_msgs.msg import VehicleLocalPosition
+from bryan_msgs.msg import DepthCamera
+import depthai as dai
+
+def get_depth_coords(x_rgb, y_rgb, rgb_width = 640, rgb_height = 480, depth_width = 640, depth_height = 400):
+    RGB_FOV_HORIZONTAL = 50 # deg
+    RGB_FOV_VERITCAL = 38
+
+    DEPTH_FOV_HORIZONTAL = 80
+    DEPTH_FOV_VERTICAL = 55
+
+    # center of rgb
+    half_x = rgb_width/2
+    half_y = rgb_height/2
+
+    rgb_hz_angpp = RGB_FOV_HORIZONTAL/rgb_width
+    rgb_vt_angpp = RGB_FOV_VERITCAL/rgb_height
+
+    angle_horiz = int((x_rgb - half_x)*(rgb_hz_angpp))
+    angle_vert = int((y_rgb-half_y)*(rgb_vt_angpp))
+
+    ## center of depth
+    half_x = depth_width/2
+    half_y = depth_height/2
+
+    angle_per_depth_px_horizontal = DEPTH_FOV_HORIZONTAL/depth_width
+    angle_per_depth_px_vertical = DEPTH_FOV_VERTICAL/depth_height
+    depth_x = int(half_x + angle_horiz/angle_per_depth_px_horizontal)
+    depth_y = int(half_y + angle_vert/angle_per_depth_px_vertical)
+
+    return depth_x, depth_y
+
+
 
 class DepthCameraNode(Node):
     """Node for controlling a vehicle in offboard mode."""
@@ -22,26 +52,26 @@ class DepthCameraNode(Node):
         )
 
 
-        self.publisher = self.create_publisher(BottomCamera, 'depth_camera', 10) ### CHANGE BOTTOMCAMERA TO DEPTHCAMERA, NEED TO CREATE A MESSAGE TYPE
-        self.timer = self.create_timer(0.5, self.timer_callback)
+        self.publisher = self.create_publisher(DepthCamera, 'depth_camera', 10) 
+        self.timer = self.create_timer(4.0, self.timer_callback)
 
 
         # depth cam setup
         self.pipeline = dai.Pipeline()
 
         # Define sources and outputs
-        self.monoLeft = pipeline.create(dai.node.MonoCamera)
-        self.monoRight = pipeline.create(dai.node.MonoCamera)
-        self.stereo = pipeline.create(dai.node.StereoDepth)
-        self.spatialLocationCalculator = pipeline.create(dai.node.SpatialLocationCalculator)
+        self.monoLeft = self.pipeline.create(dai.node.MonoCamera)
+        self.monoRight = self.pipeline.create(dai.node.MonoCamera)
+        self.stereo = self.pipeline.create(dai.node.StereoDepth)
+        self.spatialLocationCalculator = self.pipeline.create(dai.node.SpatialLocationCalculator)
 
-        self.camRgb = pipeline.create(dai.node.ColorCamera)
-        self.xoutRgb = pipeline.create(dai.node.XLinkOut)
+        self.camRgb = self.pipeline.create(dai.node.ColorCamera)
+        self.xoutRgb = self.pipeline.create(dai.node.XLinkOut)
         self.xoutRgb.setStreamName("rgb")
 
-        self.xoutDepth = pipeline.create(dai.node.XLinkOut)
-        self.xoutSpatialData = pipeline.create(dai.node.XLinkOut)
-        self.xinSpatialCalcConfig = pipeline.create(dai.node.XLinkIn)
+        self.xoutDepth = self.pipeline.create(dai.node.XLinkOut)
+        self.xoutSpatialData = self.pipeline.create(dai.node.XLinkOut)
+        self.xinSpatialCalcConfig = self.pipeline.create(dai.node.XLinkIn)
 
         self.xoutDepth.setStreamName("depth")
         self.xoutSpatialData.setStreamName("spatialData")
@@ -64,10 +94,11 @@ class DepthCameraNode(Node):
         self.camRgb.setInterleaved(False)
         self.camRgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
 
-        self.camRgb.preview.link(xoutRgb.input)
+        self.camRgb.preview.link(self.xoutRgb.input)
         # Config
-        self.topLeft = dai.Point2f(0.4, 0.4)
+        self.topLeft = dai.Point2f(0.4, 0.4) # carry overs from sample code
         self.bottomRight = dai.Point2f(0.6, 0.6)
+        self.newConfig = False
 
         self.detector = Detector(
                 families="tag36h11",
@@ -83,20 +114,26 @@ class DepthCameraNode(Node):
         self.config.depthThresholds.lowerThreshold = 100
         self.config.depthThresholds.upperThreshold = 10000
         self.calculationAlgorithm = dai.SpatialLocationCalculatorAlgorithm.MEDIAN
-        self.config.roi = dai.Rect(topLeft, bottomRight)
+        self.config.roi = dai.Rect(self.topLeft, self.bottomRight)
 
         self.spatialLocationCalculator.inputConfig.setWaitForMessage(False)
-        self.spatialLocationCalculator.initialConfig.addROI(config)
+        self.spatialLocationCalculator.initialConfig.addROI(self.config)
 
         # Linking
-        self.monoLeft.out.link(stereo.left)
-        self.monoRight.out.link(stereo.right)
+        self.monoLeft.out.link(self.stereo.left)
+        self.monoRight.out.link(self.stereo.right)
 
-        self.spatialLocationCalculator.passthroughDepth.link(xoutDepth.input)
-        self.stereo.depth.link(spatialLocationCalculator.inputDepth)
+        self.spatialLocationCalculator.passthroughDepth.link(self.xoutDepth.input)
+        self.stereo.depth.link(self.spatialLocationCalculator.inputDepth)
 
-        self.spatialLocationCalculator.out.link(xoutSpatialData.input)
-        self.xinSpatialCalcConfig.out.link(spatialLocationCalculator.inputConfig)
+        self.spatialLocationCalculator.out.link(self.xoutSpatialData.input)
+        self.xinSpatialCalcConfig.out.link(self.spatialLocationCalculator.inputConfig)
+        self.cfg = dai.SpatialLocationCalculatorConfig()
+        self.cfg.addROI(self.config)
+
+        
+
+        print('initialization finished')
 
         # self.vehicle_local_position_subscriber = self.create_subscription(
         #     VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
@@ -107,23 +144,88 @@ class DepthCameraNode(Node):
         self.vehicle_local_position = vehicle_local_position
 
     def timer_callback(self):
-        ret, frame = self.cap.read()
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
-        detections = self.detector.detect(gray)
-        #cv2.imshow('frame',frame)
-        msg = BottomCamera()
-        msg.cx = -1
-        msg.cy = -1
-        if detections:
-            msg.found = True
-            msg.cx = int(detections[0].center[0])
-            msg.cy =int(detections[0].center[1])
-            #print('found apriltag')
-            # _, _ = self.get_april_horiz_distance(msg.cx, msg.cy)
-        else:
-            msg.found = False
+        msg = DepthCamera()
+        msg.dx = 0.0
+        msg.dy = 0.0
+        msg.yaw = 0.0
+        msg.spotted = False
+        with dai.Device(self.pipeline) as device:
+            depthQueue = device.getOutputQueue(name="depth", maxSize=1, blocking=False)
+            spatialCalcQueue = device.getOutputQueue(name="spatialData", maxSize=1, blocking=False)
+            spatialCalcConfigInQueue = device.getInputQueue("spatialCalcConfig")
+            qRgb = device.getOutputQueue(name="rgb", maxSize=1, blocking=False)
+
+            inDepth = depthQueue.get() # Blocking call, will wait until a new data has arrived
+
+            depthFrame = inDepth.getFrame() # depthFrame values are in millimeters
+            # print('i think its stuck here')
+            inRgb = qRgb.get()
+            inRgb = inRgb.getCvFrame()  
+
+            depth_downscaled = depthFrame[::4]
+            if np.all(depth_downscaled == 0):
+                min_depth = 0  # Set a default minimum depth value when all elements are zero
+            else:
+                min_depth = np.percentile(depth_downscaled[depth_downscaled != 0], 1)
+            max_depth = np.percentile(depth_downscaled, 99)
+            depthFrameColor = np.interp(depthFrame, (min_depth, max_depth), (0, 255)).astype(np.uint8)
+            depthFrameColor = cv2.applyColorMap(depthFrameColor, cv2.COLORMAP_HOT)
+
+            spatialData = spatialCalcQueue.get().getSpatialLocations()
+            gray = cv2.cvtColor(inRgb, cv2.COLOR_RGB2GRAY) 
+            detections = self.detector.detect(gray)
+
+            if detections:
+                msg.spotted = True
+                d = detections[0]
+                center = d.center
+                cx = center[0]
+                cy = center[1]
+                dx, dy = get_depth_coords(cx, cy)
+
+                self.topLeft = dai.Point2f(dx - 5, dy-5)  ## getting depth of middle of frame if apriltag is there
+                self.bottomRight = dai.Point2f(dx+5, dy+5)
+
+                self.config.roi = dai.Rect(self.topLeft, self.bottomRight)
+                self.config.calculationAlgorithm = self.calculationAlgorithm
+                self.cfg = dai.SpatialLocationCalculatorConfig()
+                self.cfg.addROI(self.config)
+                spatialCalcConfigInQueue.send(self.cfg)
+                # self.newConfig = False
+
+                # self.newConfig = True
+                for depthData in spatialData:
+                    roi = depthData.config.roi
+                    roi = roi.denormalize(width=depthFrameColor.shape[1], height=depthFrameColor.shape[0])
+                    xmin = int(roi.topLeft().x)
+                    ymin = int(roi.topLeft().y)
+                    xmax = int(roi.bottomRight().x)
+                    ymax = int(roi.bottomRight().y)
+
+
+                    
+                    xmin = -5
+                    xmax = 5
+                    ymin = -5
+                    ymax = 5
+
+                    depthMin = depthData.depthMin
+                    depthMax = depthData.depthMax
+
+                    msg.dx = depthData.spatialCoordinates.z
+                    msg.dy = depthData.spatialCoordinates.x
+
+                    if self.newConfig:
+                        pass
+                        self.config.roi = dai.Rect(self.topLeft, self.bottomRight)
+                        self.config.calculationAlgorithm = self.calculationAlgorithm
+                        self.cfg = dai.SpatialLocationCalculatorConfig()
+                        self.cfg.addROI(self.config)
+                        spatialCalcConfigInQueue.send(self.cfg)
+                        self.newConfig = False
+        
         self.publisher.publish(msg)
+        print('msg sent')
         #print('published message')
         
 
@@ -201,7 +303,7 @@ def main(args = None):
 
     # camera = 0
     # cap = cv2.VideoCapture(camera)
-    node = BottomCameraNode()
+    node = DepthCameraNode()
     rclpy.spin(node)
     node.destroy_node
     rclpy.shutdown()
