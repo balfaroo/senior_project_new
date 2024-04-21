@@ -28,7 +28,7 @@ setup(
             'bottom_cam_node = bryan_offboard.bottom_cam_node:main',
             'bottom_cam_node_listener = bryan_offboard.bottom_cam_node_listener:main',
             'depth_cam_node = bryan_offboard.depth_cam_node:main',
-            'depth_cam_listener = bryan_offboard.depth_cam_listener:main'
+            'depth_cam_listener = bryan_offboard.depth_cam_listener:main',
             'offboard_complete = bryan_offboard.offboard_complete:main'
         ],
     },
