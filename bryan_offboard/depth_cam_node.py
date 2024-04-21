@@ -70,8 +70,6 @@ class DepthCameraNode(Node):
 def main(args = None):
     rclpy.init(args = args)
 
-    # camera = 0
-    # cap = cv2.VideoCapture(camera)
     node = DepthCameraNode()
     msg = DepthCamera()
     stepSize = 0.05
@@ -125,16 +123,8 @@ def main(args = None):
     cy = 247.21032715
     fx = 509.9508667
     fy = 509.9508667
-
-    # cx = 207.4074707
-    # cy = 204.50645447
-    # fx = 318.7192688
-    # fy = 318.7192688
     L_paper = 150.0 ## mm
 
-
-        # fx/=1000
-        # fy/=1000
     L_paper/=1000
 
     detector = Detector(
@@ -233,24 +223,11 @@ def main(args = None):
 
                         depthMin = depthData.depthMin
                         depthMax = depthData.depthMax
-
-                        
-
-                        # fontType = cv2.FONT_HERSHEY_TRIPLEX
-                        # cv2.rectangle(depthFrameColor, (xmin, ymin), (xmax, ymax), color, 1)
-                        # cv2.putText(depthFrameColor, f"X: {int(depthData.spatialCoordinates.x)} mm", (xmin + 10, ymin + 20), fontType, 0.5, color)
-                        # cv2.putText(depthFrameColor, f"Y: {int(depthData.spatialCoordinates.y)} mm", (xmin + 10, ymin + 35), fontType, 0.5, color)
-                        # cv2.putText(depthFrameColor, f"Z: {int(depthData.spatialCoordinates.z)} mm", (xmin + 10, ymin + 50), fontType, 0.5, color)
-                        # print("x distance: ", int(depthData.spatialCoordinates.x), "mm")
-                        # print("y distance: ", int(depthData.spatialCoordinates.y), "mm")
-                        # print("z distance: ", int(depthData.spatialCoordinates.z), "mm")
                         msg.dx = depthData.spatialCoordinates.z
                         msg.dy = depthData.spatialCoordinates.x
                         msg.spotted = True
 
                         pose_R = d.pose_R
-                #yaw = np.degrees(np.arctan(pose_R[0][1]/pose_R[0][0]))
-                #yaw = np.degrees(np.arctan(pose_R[1][2]/pose_R[2][2]))
                         try:
                             msg.yaw = -np.degrees(np.arcsin(pose_R[0][2])) ## this the one chief]
                         except:
@@ -313,24 +290,6 @@ def main(args = None):
             rclpy.spin_once(node)
             node.set_message(msg)
             msg.spotted = False
-            # print('went through loop')
-    # while True:
-    #     try:
-    #         rclpy.spin_once(node)
-    #         ret, frame = cap.read()
-    #         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    #         BottomCameraNode.publish_camera_msg(gray)
-    #     except Exception:
-    #             try:
-    #                 BottomCameraNode.destroy_node()
-    #             except:
-    #                 pass
-    #             try:
-    #                 rclpy.shutdown()
-    #             except:
-    #                 pass
-            
-    #             sys.exit(0)
 
 
 if __name__ == '__main__':

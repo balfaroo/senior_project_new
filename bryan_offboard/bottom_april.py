@@ -109,10 +109,6 @@ class OffboardControl(Node):
         # Create a timer to publish control commands
         self.timer = self.create_timer(0.1, self.timer_callback)
         self.subscription = self.create_subscription(BottomCamera, 'bottom_camera', self.listener_callback, 10)
-    
-
-
-    
 
     # instructions provided in body frame
     def set_position_inst(self, x_b: float, y_b: float, yaw_b: float, z_b = -0.65):
@@ -121,15 +117,6 @@ class OffboardControl(Node):
         self.yaw_inst = np.radians(yaw_b) # yaw instruction will be provided in degrees
         self.z_inst = z_b
         #self.yaw_inst = np.mod(self.yaw_inst+np.pi, 2*np.pi) - np.pi
-
-    # def body_to_local(self): # outdated
-    #     hding = self.vehicle_local_position.heading # + self.yaw_inst maybe don't need to add yaw since you haven't rotated yet
-    #     return np.cos(hding)*self.dx_inst+np.sin(hding)*self.dy_inst, -np.sin(hding)*self.dx_inst+np.cos(hding)*self.dy_inst, np.mod(hding+self.yaw_inst+np.pi, 2*np.pi) - np.pi
-
-    # def body_to_local_yaw(self, body_yaw: float): outdated
-    #     yaw = self.initial_heading+body_yaw
-    #     yaw = np.mod(yaw + np.pi, 2*np.pi) - np.pi
-    #     return yaw
     
     def set_distance_to_april(self, dist: float):
         self.dist_to_april = dist
@@ -141,12 +128,6 @@ class OffboardControl(Node):
     def body_to_local(self, x, y):
         hding = self.vehicle_local_position.heading # + self.yaw_inst maybe don't need to add yaw since you haven't rotated yet
         return np.cos(hding)*x-np.sin(hding)*y, np.sin(hding)*x+np.cos(hding)*y
-
-    
-    # use body to local now
-    # def convert_forward_body_to_local(self, forward_inst: float, new_yaw: float):
-    #     #heading = self.vehicle_local_position.heading
-    #     return forward_inst*np.cos(new_yaw), forward_inst*np.sin(new_yaw)
 
 
     def vehicle_local_position_callback(self, vehicle_local_position):
@@ -193,8 +174,6 @@ class OffboardControl(Node):
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.offboard_control_mode_publisher.publish(msg)
 
-
-    # for now this is fine since hardcoding a 90 degree turn, but would need to add an argument for yaw in future
     def publish_position_setpoint(self, x: float, y: float, z: float, delta_yaw: float): # now using x and y in body frame, using y = 0, x and y as dx and dy, yaw as delta
         """Publish the trajectory setpoint."""
         msg = TrajectorySetpoint()
@@ -228,16 +207,6 @@ class OffboardControl(Node):
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.vehicle_command_publisher.publish(msg)
 
-    def move_as_commanded(self):
-        local_dx, local_dy, local_yaw = self.body_to_local()
-        msg = TrajectorySetpoint()
-        msg.position = [local_dx + self.x_local, local_dy + self.y_local, self.z_inst] # could potentially be better to just do vehicle_local_position.x or .y
-        msg.yaw = local_yaw
-        self.x_local += local_dx
-        self.y_local += local_dy
-        msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
-        self.trajectory_setpoint_publisher.publish(msg)
-        #self.get_logger().info(f"Publishing position setpoints {[self.x_local, self.y_local, self.takeoff_height, np.degrees(local_yaw)]}")
 
     def get_april_horiz_distance(self, cx, cy):
         h_cam = 0.063
@@ -352,88 +321,6 @@ def main(args=None) -> None:
     rclpy.spin(offboard_control)
     offboard_control.destroy_node()
     rclpy.shutdown()
-
-
-   
-
-    # detector = Detector(
-    #         families="tag36h11",
-    #         nthreads=1,
-    #         quad_decimate=1.0,
-    #         quad_sigma=0.0,
-    #         refine_edges=1,
-    #         decode_sharpening=0.25,
-    #         debug=0
-    #     )
-
-
-    # horizontal_distance = 0.1 # move in 10 cm increments (clip)
-    # yaw_delta = 15 # search for tag in increments of 15 degree
-    # spun = False
-    # next_height = -0.55 ## 10 cm increments
-    # camera = 0
-    # cap = cv2.VideoCapture(camera)
-    # while True:
-    #     #inRgb = qRgb.get()  # blocking call, will wait until a new data has arrived
-    #     try:
-    #         #print('getting frame')
-    #         # now = datetime.datetime.now()
-    #         # print(now)
-    #         ret, frame = cap.read()
-    #         #color_img = np.asanyarray(inRgb)
-    #         # Retrieve 'bgr' (opencv format) frame
-    #         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
-    #         detections = detector.detect(gray)
-    #         #detections = False
-    #         if detections:
-    #                 # d = detections[0]
-    #                 # center = d['center']
-    #                 # cX = int(center[0])
-    #                 # cY = int(center[1])
-    #                 # dx, dy = get_depth_coords(cX, cY, rgb_width, rgb_height, depth_width, depth_height)
-    #                 # dist = depth_image[dy, dx]*depth_scale
-    #                 # offboard_control.set_distance_to_april(dist)
-    #                 # offboard_control.set_detection(True)
-    #             d = detections[0]
-    #             center = d.center
-    #             center_x = int(center[0])
-    #             center_y = int(center[1])
-
-    #             inst_x, inst_y = offboard_control.april_horiz_distance(center_x, center_y, frame)
-
-    #             # pose_R = d.pose_R
-    #             #     #yaw = np.degrees(np.arctan(pose_R[0][1]/pose_R[0][0]))
-    #             #     #yaw = np.degrees(np.arctan(pose_R[1][2]/pose_R[2][2]))
-    #             # yaw = -np.degrees(np.arcsin(pose_R[0][2])) ## this the one chief]
-
-    #             print('moving to tag')
-
-    #             inst_x = min(inst_x, horizontal_distance)
-    #             inst_y = min(inst_y, horizontal_distance)
-    #             offboard_control.set_position_inst(inst_x, inst_y, 0.0, next_height)
-    #             next_height -= 10
-    #             #print('yaw ,', yaw, ' degrees')
-    #         else:
-    #             offboard_control.set_position_inst(0.0, 0.0, yaw_delta)
-    #             print('yawing to find tag')
-            
-            
-    #         rclpy.spin_once(offboard_control)
-    #         spun = True
-
-    #     except Exception as e:     
-    #         print(e)           
-    #         offboard_control.destroy_node()
-    #         if spun:
-    #             rclpy.shutdown()
-    #         sys.exit(0)
-                
-
-
-
-
-    #offboard_control.destroy_node()
-    #rclpy.shutdown()
 
 
 if __name__ == '__main__':

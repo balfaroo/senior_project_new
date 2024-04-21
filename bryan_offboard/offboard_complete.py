@@ -304,10 +304,6 @@ class OffboardControl(Node):
 
 
 def main(args=None) -> None:
-    rgb_width = 640
-    rgb_height = 480
-    depth_width = 640
-    depth_height = 480
 
     print('Starting offboard control node...')
     rclpy.init(args=args)
