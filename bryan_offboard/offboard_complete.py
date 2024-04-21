@@ -227,7 +227,7 @@ class OffboardControl(Node):
         # print('alpha h ', alpha_h)
         # print('alpha v ', alpha_v)
         
-        if z_leg: # for now just checking dx and dy
+        if z_leg < 0.1: # for now just checking dx and dy
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(45+alpha_h))-l_cam
@@ -247,6 +247,16 @@ class OffboardControl(Node):
 
         return dx, dy
 
+
+    
+
+    # def bottom_listener_callback(self, msg):
+    #     if abs(self.vehicle_local_position.z - self.takeoff_height) < 0.02 and msg.found:
+    #         self.depth_tracking = False
+    #         dx, dy = self.get_april_horiz_distance_no_clip(msg.cx, msg.cy)
+
+    ## going to try new approach: just try going straight over and then down
+
     def bottom_listener_callback(self, msg):
         if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02: # only move once at the appropriate heigt
             if msg.found:
@@ -265,6 +275,7 @@ class OffboardControl(Node):
                 self.target_heading += np.radians(5)
                 self.target_heading = np.mod(self.target_heading + np.pi, 2*np.pi) - np.pi
                 self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading) # last argument angle increment in degrees
+
 
     def timer_callback(self) -> None:
         """Callback function for the timer."""
