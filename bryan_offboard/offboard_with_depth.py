@@ -177,16 +177,19 @@ class OffboardControl(Node):
             if msg.spotted:
                 dx = msg.dx/1000
                 dy = msg.dy/1000
+                yaw = np.radians(msg.yaw)
 
-                if dx>1.5 and abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05:
-                    dx, dy = self.body_to_local(0.2, 0.0)
+                if dx>2.0 and abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05:
+                    dx, dy = self.body_to_local(0.2, -np.sign(dy)*min(0.2,abs(dy))) # dy needs to be small, for now will run it so that it is
                     self.x_local+=dx
                     self.y_local+=dy
+                    self.target_heading += yaw
+                    self.target_heading = np.mod(self.target_heading+np.pi, 2*np.pi)-np.pi
                     self.x_local_old = self.x_local
                     self.y_local_old = self.y_local
                     self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
 
-                elif dx<=1.5:
+                elif dx<=2.0:
                     self.takeoff_height = 0.0
                     self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
 
@@ -202,6 +205,7 @@ class OffboardControl(Node):
         if self.offboard_setpoint_counter == 15: ## raised delay to 1.5 s for heading to stabilitze
             self.target_heading = self.vehicle_local_position.heading
             self.engage_offboard_mode()
+            self.get_logger().info('arming drone')
             self.arm()
 
 

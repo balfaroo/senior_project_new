@@ -102,15 +102,18 @@ with dai.Device(pipeline) as device:
             pose_R = d.pose_R
                 #yaw = np.degrees(np.arctan(pose_R[0][1]/pose_R[0][0]))
                 #yaw = np.degrees(np.arctan(pose_R[1][2]/pose_R[2][2]))
-            yaw = -np.degrees(np.arcsin(pose_R[0][2])) ## this the one chief]
+            try:
+                yaw = -np.degrees(np.arcsin(pose_R[0][2])) ## this the one chief]
+            except:
+                yaw = 0.0
             print('yaw ,', yaw, ' degrees')
 
 
-        cv2.namedWindow("rgb", cv2.WINDOW_AUTOSIZE)
+       #cv2.namedWindow("rgb", cv2.WINDOW_AUTOSIZE)
 
-        cv2.imshow("rgb", inRgb)
+        #cv2.imshow("rgb", inRgb)
 
         if cv2.waitKey(1) == ord('q'):
             break
-        print(datetime.datetime.now() - start)
+        #print(datetime.datetime.now() - start)
 

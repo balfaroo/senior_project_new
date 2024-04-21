@@ -141,7 +141,7 @@ with dai.Device(pipeline) as device:
 
         spatialData = spatialCalcQueue.get().getSpatialLocations()
         gray = cv2.cvtColor(inRgb, cv2.COLOR_RGB2GRAY) 
-        detections = detector.detect(gray)
+        detections = detector.detect(gray, estimate_tag_pose=True, camera_params=[fx, fy, cx, cy], tag_size=L_paper)
         cv2.namedWindow("rgb", cv2.WINDOW_AUTOSIZE)
         cv2.imshow("rgb", inRgb)
         if detections:

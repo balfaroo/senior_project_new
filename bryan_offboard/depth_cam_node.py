@@ -121,6 +121,22 @@ def main(args = None):
     topLeft = dai.Point2f(0.4, 0.4)
     bottomRight = dai.Point2f(0.6, 0.6)
 
+    cx = 331.85198975
+    cy = 247.21032715
+    fx = 509.9508667
+    fy = 509.9508667
+
+    # cx = 207.4074707
+    # cy = 204.50645447
+    # fx = 318.7192688
+    # fy = 318.7192688
+    L_paper = 150.0 ## mm
+
+
+        # fx/=1000
+        # fy/=1000
+    L_paper/=1000
+
     detector = Detector(
             families="tag36h11",
             nthreads=1,
@@ -183,7 +199,7 @@ def main(args = None):
 
             spatialData = spatialCalcQueue.get().getSpatialLocations()
             gray = cv2.cvtColor(inRgb, cv2.COLOR_RGB2GRAY) 
-            detections = detector.detect(gray)
+            detections = detector.detect(gray, estimate_tag_pose=True, camera_params=[fx, fy, cx, cy], tag_size=L_paper)
             if detections:
                 d = detections[0]
                 center = d.center
@@ -231,6 +247,14 @@ def main(args = None):
                         msg.dx = depthData.spatialCoordinates.z
                         msg.dy = depthData.spatialCoordinates.x
                         msg.spotted = True
+
+                        pose_R = d.pose_R
+                #yaw = np.degrees(np.arctan(pose_R[0][1]/pose_R[0][0]))
+                #yaw = np.degrees(np.arctan(pose_R[1][2]/pose_R[2][2]))
+                        try:
+                            msg.yaw = -np.degrees(np.arcsin(pose_R[0][2])) ## this the one chief]
+                        except:
+                            msg.yaw = 0.0
                     # Show the frame
                     
 

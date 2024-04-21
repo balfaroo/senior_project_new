@@ -7,7 +7,7 @@ import cv2
 from pupil_apriltags import Detector, Detection
 from bryan_msgs.msg import DepthCamera
 
-class Listner(Node):
+class Listener(Node):
 
     def __init__(self):
         super().__init__('depth_camera_listener')
@@ -22,15 +22,16 @@ class Listner(Node):
         self.subscription = self.create_subscription(DepthCamera, 'depth_camera', self.listener_callback, 10)
 
     def listener_callback(self, msg):
-        print(msg.spotted)
-        print('estimated forward distance: ', msg.dx)
-        print('estimated lateral distance: ', msg.dy)
-        print()
+        if msg.spotted:
+            print('estimated forward distance: ', msg.dx)
+            print('estimated lateral distance: ', msg.dy)
+            print('estimated yaw: ', msg.yaw)
+            print()
 
 def main(args=None):
     rclpy.init(args=args)
 
-    listener = Listner()
+    listener = Listener()
     rclpy.spin(listener)
     listener.destroy_node()
     rclpy.shutdown()
