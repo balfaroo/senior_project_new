@@ -72,6 +72,7 @@ class OffboardControl(Node):
         self.subscription_bottom =self.create_subscription(BottomCamera, 'bottom_camera', self.bottom_listener_callback, 10)
 
         self.depth_tracking = True
+        self.bottom_spotted = False
     
     
     def set_distance_to_april(self, dist: float):
@@ -227,7 +228,7 @@ class OffboardControl(Node):
         # print('alpha h ', alpha_h)
         # print('alpha v ', alpha_v)
         
-        if z_leg < 0.1: # for now just checking dx and dy
+        if z_leg: # for now just checking dx and dy
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(45+alpha_h))-l_cam
@@ -259,19 +260,22 @@ class OffboardControl(Node):
 
     def bottom_listener_callback(self, msg):
         if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02: # only move once at the appropriate heigt
-            if msg.found:
+            if msg.found and not self.bottom_spotted:
                 self.depth_tracking = False
+                self.bottom_spotted = True
                 dx, dy = self.get_april_horiz_distance(msg.cx, msg.cy)
                 print('body dx, dy: ', dx, dy)
-                self.takeoff_height += 0.1 # decrease altitude by 10 cm
+                # self.takeoff_height += 0.1 # decrease altitude by 10 cm
                 dx, dy, = self.body_to_local(dx, dy)
-                self.x_local+=dx
-                self.y_local+=dy
-                if abs(self.vehicle_local_position.x - self.x_local) < 0.05 and abs(self.vehicle_local_position.y - self.y_local) < 0.05: # only set new points if previous ones have been reached
-                   print('local dx, dy ', dx, dy)
-                   self.publish_position_setpoint(dx, dy, self.takeoff_height, self.target_heading)
+                self.x_local= self.vehicle_local_position.x+dx
+                self.y_local= self.vehicle_local_position.y+dy
+                self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
+                # if abs(self.vehicle_local_position.x - self.x_local) < 0.05 and abs(self.vehicle_local_position.y - self.y_local) < 0.05: # only set new points if previous ones have been reached
+                #    print('local dx, dy ', dx, dy)
+                #    self.publish_position_setpoint(dx, dy, self.takeoff_height, self.target_heading)
                 print('detected apriltag!')
             else:
+                pass
                 self.target_heading += np.radians(5)
                 self.target_heading = np.mod(self.target_heading + np.pi, 2*np.pi) - np.pi
                 self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading) # last argument angle increment in degrees
@@ -289,6 +293,8 @@ class OffboardControl(Node):
 
 
         elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: # needed so that it stays hovering even when close
+            if self.bottom_spotted and abs(self.x_local-self.vehicle_local_position.x) < 0.02 and abs(self.y_local-self.vehicle_local_position.y) < 0.02:
+                self.takeoff_height = 0.0
             self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
         
 
