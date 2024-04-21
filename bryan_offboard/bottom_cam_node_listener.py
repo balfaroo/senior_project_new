@@ -6,6 +6,7 @@ import numpy as np
 import cv2
 from pupil_apriltags import Detector, Detection
 from bryan_msgs.msg import BottomCamera
+from px4_msgs.msg import VehicleLocalPosition
 
 class Listner(Node):
 
@@ -20,10 +21,65 @@ class Listner(Node):
         )
 
         self.subscription = self.create_subscription(BottomCamera, 'bottom_camera', self.listener_callback, 10)
+        self.vehicle_local_position = VehicleLocalPosition()
+        self.vehicle_local_position_subscriber = self.create_subscription(
+            VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
 
     def listener_callback(self, msg):
-        print(msg.found)
+        if msg.found:
+            dx,dy = self.get_april_horiz_distance(msg.cx, msg.cy)
+            print(dx, dy)
 
+    def get_april_horiz_distance(self, cx, cy):
+        h_cam = 0.063
+        l_cam = 0.063
+        h_fov = 41
+        v_fov = 66
+
+        ncols = 720
+        nrows = 1280
+
+        # v_ang_perpx = frame.shape[0]/v_fov
+        # h_ang_perpx = frame.shape[1]/h_fov
+
+        v_ang_perpx = v_fov/nrows
+        h_ang_perpx =  h_fov/ncols
+        
+        h_of = 0.158
+
+        z = abs(self.vehicle_local_position.z)
+        z_leg = z - h_of
+        z_cam = z_leg+h_cam
+
+        alpha_h = (cx-ncols/2)*h_ang_perpx
+        alpha_v = -(cy-nrows/2)*v_ang_perpx
+
+        # print('alpha h ', alpha_h)
+        # print('alpha v ', alpha_v)
+        
+        if z_leg: # for now just checking dx and dy
+
+            dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
+            dy = z_cam*np.tan(np.radians(45+alpha_h))-l_cam
+            
+        else: # clipping to only go down by 10 cm increments
+
+            z_leg = 0.1
+            z_cam = z_leg+h_cam
+
+            dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
+            dy = z_cam*np.tan(np.radians(45+alpha_h))-l_cam
+
+            # do the calculations as if we were only 10 cm in the air
+
+        # print('dx ', dx, ' dy ', dy)
+            
+
+        return dx, dy
+
+    def vehicle_local_position_callback(self, vehicle_local_position):
+        """Callback function for vehicle_local_position topic subscriber."""
+        self.vehicle_local_position = vehicle_local_position
 
 def main(args=None):
     rclpy.init(args=args)

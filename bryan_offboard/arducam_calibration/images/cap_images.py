@@ -3,7 +3,13 @@ import os
 
 
 camera = 0
-cap = cv2.VideoCapture(camera)
+while True:
+    try:
+        cap = cv2.VideoCapture(camera)
+        break
+    except:
+        camera+=1
+print(camera)
 count = 0
 print(os.getcwd())
 
