@@ -159,6 +159,7 @@ def main(args = None):
     # Connect to device and start pipeline
     with dai.Device(pipeline) as device:
 
+
         # Output queue will be used to get the depth frames from the outputs defined above
         depthQueue = device.getOutputQueue(name="depth", maxSize=1, blocking=False)
         spatialCalcQueue = device.getOutputQueue(name="spatialData", maxSize=1, blocking=False)
@@ -288,8 +289,8 @@ def main(args = None):
                         newConfig = False
             node.set_message(msg)
             rclpy.spin_once(node)
-            node.set_message(msg)
             msg.spotted = False
+            msg.yaw = 0.0
 
 
 if __name__ == '__main__':

@@ -43,7 +43,8 @@ class Listener(Node):
             yaw = msg.yaw
 
             dx, dy = self.body_to_local(0.2, -np.sign(dy)*min(0.2,abs(dy))) # dy needs to be small, for now will run it so that it is
-            print('would send dx, ', dx, ' would send dy, ', dy, ' and would yaw by', yaw)
+            # print('would send dx, ', dx, ' would send dy, ', dy, ' and would yaw by', yaw)
+        print('new heading: ', self.vehicle_local_position.heading + np.radians(msg.yaw))
 
 def main(args=None):
     rclpy.init(args=args)
