@@ -4,7 +4,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand, VehicleLocalPosition, VehicleStatus
-from bryan_msgs.msg import DepthCamera
+from bryan_msgs.msg import DepthCamera, BottomCamera
 import depthai as dai
 import sys
 import numpy as np
@@ -68,7 +68,10 @@ class OffboardControl(Node):
 
         # Create a timer to publish control commands
         self.timer = self.create_timer(0.1, self.timer_callback)
-        self.subscription = self.create_subscription(DepthCamera, 'depth_camera', self.listener_callback, 10)
+        self.subscription_depth = self.create_subscription(DepthCamera, 'depth_camera', self.depth_listener_callback, 10)
+        self.subscription_bottom =self.create_subscription(BottomCamera, 'bottom_camera', self.bottom_listener_callback, 10)
+
+        self.depth_tracking = True
     
     
     def set_distance_to_april(self, dist: float):
@@ -134,7 +137,7 @@ class OffboardControl(Node):
         msg = TrajectorySetpoint()
         # y = self.vehicle_local_position.y + y 
         msg.position = [x, y, z]
-        msg.yaw = delta_yaw #self.target_heading + np.radians(delta_yaw) ## based on this syntax, may actually end up not using delta_yaw  != 0.0 not doing a delta yaw anymore
+        msg.yaw = delta_yaw #self.target_heading + np.radians(delta_yaw) ## based on this syntax, may actually end up not using delta_yaw  != 0.0 not doing a delta yaw anymore        
         msg.yaw = np.mod(msg.yaw+np.pi, 2*np.pi)-np.pi
         #msg.yaw = 1.57079  # (90 degree)
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
@@ -172,8 +175,9 @@ class OffboardControl(Node):
         #self.get_logger().info(f"Publishing position setpoints {[self.x_local, self.y_local, self.takeoff_height, np.degrees(local_yaw)]}")
 
 
-    def listener_callback(self, msg):
-        if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02: # only move once at the appropriate heigt
+    def depth_listener_callback(self, msg):
+
+        if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02 and self.depth_tracking: # only move once at the appropriate height and if not tracking by the bottom camera
             if msg.spotted:
                 dx = msg.dx/1000
                 dy = msg.dy/1000
@@ -196,7 +200,71 @@ class OffboardControl(Node):
             else:
                 pass
 
+    def get_april_horiz_distance(self, cx, cy):
+        h_cam = 0.063
+        l_cam = 0.063
+        h_fov = 41
+        v_fov = 66
 
+        ncols = 720
+        nrows = 1280
+
+        # v_ang_perpx = frame.shape[0]/v_fov
+        # h_ang_perpx = frame.shape[1]/h_fov
+
+        v_ang_perpx = v_fov/nrows
+        h_ang_perpx =  h_fov/ncols
+        
+        h_of = 0.158
+
+        z = abs(self.takeoff_height)
+        z_leg = z - h_of
+        z_cam = z_leg+h_cam
+
+        alpha_h = (cx-ncols/2)*h_ang_perpx
+        alpha_v = -(cy-nrows/2)*v_ang_perpx
+
+        # print('alpha h ', alpha_h)
+        # print('alpha v ', alpha_v)
+        
+        if z_leg: # for now just checking dx and dy
+
+            dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
+            dy = z_cam*np.tan(np.radians(45+alpha_h))-l_cam
+            
+        else: # clipping to only go down by 10 cm increments
+
+            z_leg = 0.1
+            z_cam = z_leg+h_cam
+
+            dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
+            dy = z_cam*np.tan(np.radians(45+alpha_h))-l_cam
+
+            # do the calculations as if we were only 10 cm in the air
+
+        # print('dx ', dx, ' dy ', dy)
+            
+
+        return dx, dy
+
+    def bottom_listener_callback(self, msg):
+        if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02: # only move once at the appropriate heigt
+            if msg.found:
+                self.depth_tracking = False
+                dx, dy = self.get_april_horiz_distance(msg.cx, msg.cy)
+                print('body dx, dy: ', dx, dy)
+                self.takeoff_height += 0.1 # decrease altitude by 10 cm
+                dx, dy, = self.body_to_local(dx, dy)
+                self.x_local+=dx
+                self.y_local+=dy
+                if abs(self.vehicle_local_position.x - self.x_local) < 0.05 and abs(self.vehicle_local_position.y - self.y_local) < 0.05: # only set new points if previous ones have been reached
+                   print('local dx, dy ', dx, dy)
+                   self.publish_position_setpoint(dx, dy, self.takeoff_height, self.target_heading)
+                print('detected apriltag!')
+            else:
+                self.target_heading += np.radians(5)
+                self.target_heading = np.mod(self.target_heading + np.pi, 2*np.pi) - np.pi
+                self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading) # last argument angle increment in degrees
 
     def timer_callback(self) -> None:
         """Callback function for the timer."""
