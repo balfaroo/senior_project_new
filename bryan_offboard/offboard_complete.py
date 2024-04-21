@@ -231,7 +231,7 @@ class OffboardControl(Node):
         if z_leg: # for now just checking dx and dy
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
-            dy = z_cam*np.tan(np.radians(45+alpha_h))-l_cam
+            dy = z_cam*np.tan(np.radians(alpha_h))
             
         else: # clipping to only go down by 10 cm increments
 
