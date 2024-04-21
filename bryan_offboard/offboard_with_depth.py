@@ -189,7 +189,7 @@ class OffboardControl(Node):
                     self.y_local_old = self.y_local
                     self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
 
-                elif dx<=2.0:
+                elif dx<=2.0 and abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05:
                     self.takeoff_height = 0.0
                     self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
 
