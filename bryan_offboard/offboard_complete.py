@@ -188,7 +188,7 @@ class OffboardControl(Node):
                     dx, dy = self.body_to_local(0.2, -np.sign(dy)*min(0.2,abs(dy))) # dy needs to be small, for now will run it so that it is
                     self.x_local+=dx
                     self.y_local+=dy
-                    self.target_heading -= yaw # need to see if this would work better
+                    self.target_heading += yaw # need to see if this would work better
                     self.target_heading = np.mod(self.target_heading+np.pi, 2*np.pi)-np.pi
                     self.x_local_old = self.x_local
                     self.y_local_old = self.y_local
