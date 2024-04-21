@@ -239,7 +239,7 @@ class OffboardControl(Node):
             z_cam = z_leg+h_cam
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
-            dy = z_cam*np.tan(np.radians(45+alpha_h))-l_cam
+            dy = z_cam*np.tan(np.radians(alpha_h))
 
             # do the calculations as if we were only 10 cm in the air
 
