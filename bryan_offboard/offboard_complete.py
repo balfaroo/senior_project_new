@@ -186,7 +186,7 @@ class OffboardControl(Node):
                 dx = msg.dx/1000
                 dy = msg.dy/1000
                 self.get_logger().info(f"detected front dx, dy as {[dx, dy]}")
-                yaw = 0.0 #np.radians(msg.yaw) not orienting for now
+                yaw = np.radians(msg.yaw)
                 if yaw > 0.0:
                     self.last_yaw_positive = True
                 else:
@@ -235,7 +235,7 @@ class OffboardControl(Node):
 
         z = abs(self.takeoff_height)
         z_leg = z - h_of
-        z_leg_eff = z - h_obj # "effective" altitude of legs - modeling the object as if the ground were on a plane aligned with the top of the object
+        z_leg_eff = z_leg - h_obj # "effective" altitude of legs - modeling the object as if the ground were on a plane aligned with the top of the object
         z_cam = z_leg_eff+h_cam
 
         alpha_h = (cx-ncols/2)*h_ang_perpx
