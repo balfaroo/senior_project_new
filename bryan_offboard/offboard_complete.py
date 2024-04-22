@@ -144,7 +144,8 @@ class OffboardControl(Node):
         #msg.yaw = 1.57079  # (90 degree)
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher.publish(msg)
-        self.get_logger().info(f"Publishing position setpoints {[x, y, z]}")
+        if x == 0.0 and y == 0.0:
+            self.get_logger().info(f"Publishing position setpoints {[x, y, z]}")
 
     def publish_vehicle_command(self, command, **params) -> None:
         """Publish a vehicle command."""
@@ -183,14 +184,15 @@ class OffboardControl(Node):
             if msg.spotted:
                 dx = msg.dx/1000
                 dy = msg.dy/1000
-                yaw = np.radians(msg.yaw)
+                self.get_logger().info(f"detected front dx, dy as {[dx, dy]}")
+                yaw = 0.0 #np.radians(msg.yaw) not orienting for now
                 if yaw > 0.0:
                     self.last_yaw_positive = True
                 else:
                     self.last_yaw_positive = False
 
                 if dx>2.0 and abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05:
-                    dx, dy = self.body_to_local(0.1, -np.sign(dy)*min(0.2,abs(dy))) # dy needs to be small, for now will run it so that it is
+                    dx, dy = self.body_to_local(0.1, -np.sign(dy)*min(0.1,abs(dy))) # dy needs to be small, for now will run it so that it is
                     self.x_local+=dx
                     self.y_local+=dy
                     self.target_heading += yaw # need to see if this would work better
@@ -239,7 +241,7 @@ class OffboardControl(Node):
         # print('alpha h ', alpha_h)
         # print('alpha v ', alpha_v)
         
-        if z_leg: # for now just checking dx and dy
+        if z_leg > 0.1: # for now just checking dx and dy
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(alpha_h))
@@ -275,8 +277,8 @@ class OffboardControl(Node):
                 self.depth_tracking = False
                 self.bottom_spotted = True
                 dx, dy = self.get_april_horiz_distance(msg.cx, msg.cy)
-                print('body dx, dy: ', dx, dy)
-                # self.takeoff_height += 0.1 # decrease altitude by 10 cm
+                self.get_logger().info(f"detected bottom dx, dy as {[dx, dy]}")
+                self.takeoff_height += 0.1 # decrease altitude by 10 cm
                 dx, dy, = self.body_to_local(dx, dy)
                 self.x_local= self.vehicle_local_position.x+dx
                 self.y_local= self.vehicle_local_position.y+dy
