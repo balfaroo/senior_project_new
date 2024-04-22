@@ -285,7 +285,7 @@ class OffboardControl(Node):
                 dx, dy, self.land = self.get_april_horiz_distance(msg.cx, msg.cy)
                 self.get_logger().info(f"detected bottom dx, dy as {[dx, dy]}")
                 if not self.land:
-                    self.takeoff_height += 0.1 # decrease altitude by 10 cm
+                    self.takeoff_height += 0.05 # decrease altitude by 5 cm
                 dx, dy, = self.body_to_local(dx, dy)
                 self.x_local= self.vehicle_local_position.x+dx
                 self.y_local= self.vehicle_local_position.y+dy
