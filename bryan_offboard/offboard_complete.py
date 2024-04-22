@@ -293,7 +293,7 @@ class OffboardControl(Node):
                     if len(self.dist_to_object_x) < 5:
                         self.dist_to_object_x.append(dx)
                         self.dist_to_object_y.append(dy)
-                    self.get_logger().info(f"detected bottom dx, dy as {[dx, dy]}")
+                        self.get_logger().info(f"detected bottom dx, dy as {[dx, dy]}")
                     else:
                         if not self.land:
                             self.takeoff_height += 0.05 # decrease altitude by 5 cm
