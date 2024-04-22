@@ -31,6 +31,8 @@ class BottomCameraNode(Node):
             depth=1
         )
 
+        self.vehicle_local_position = VehicleLocalPosition()
+
 
         self.publisher = self.create_publisher(BottomCamera, 'bottom_camera', 10)
         self.timer = self.create_timer(0.5, self.timer_callback)
@@ -43,6 +45,11 @@ class BottomCameraNode(Node):
     def vehicle_local_position_callback(self, vehicle_local_position):
         """Callback function for vehicle_local_position topic subscriber."""
         self.vehicle_local_position = vehicle_local_position
+
+
+    def body_to_local(self, x, y):
+        hding = self.vehicle_local_position.heading # + self.yaw_inst maybe don't need to add yaw since you haven't rotated yet
+        return np.cos(hding)*x-np.sin(hding)*y, np.sin(hding)*x+np.cos(hding)*y
 
     def timer_callback(self):
         ret, frame = self.cap.read()
@@ -59,6 +66,10 @@ class BottomCameraNode(Node):
             msg.found = True
             msg.cx = int(detections[0].center[0])
             msg.cy =int(detections[0].center[1])
+            msg.tx, msg.ty, _ = self.get_april_horiz_distance(msg.cx, msg.cy)
+            msg.tx, msg.ty = self.body_to_local(msg.tx, msg.ty)
+            msg.tx = self.vehicle_local_position.x + msg.tx
+            msg.ty = self.vehicle_local_position.y + msg.ty
             #print('found apriltag')
             # _, _ = self.get_april_horiz_distance(msg.cx, msg.cy)
         else:
@@ -66,7 +77,6 @@ class BottomCameraNode(Node):
         self.publisher.publish(msg)
         #print('published message')
         
-
     def get_april_horiz_distance(self, cx, cy):
         h_cam = 0.063
         l_cam = 0.063
@@ -83,10 +93,12 @@ class BottomCameraNode(Node):
         h_ang_perpx =  h_fov/ncols
         
         h_of = 0.158
+        h_obj = 0.04682 # object height, m
 
         z = abs(self.vehicle_local_position.z)
         z_leg = z - h_of
-        z_cam = z_leg+h_cam
+        z_leg_eff = z_leg - h_obj # "effective" altitude of legs - modeling the object as if the ground were on a plane aligned with the top of the object
+        z_cam = z_leg_eff+h_cam
 
         alpha_h = (cx-ncols/2)*h_ang_perpx
         alpha_v = -(cy-nrows/2)*v_ang_perpx
@@ -94,48 +106,24 @@ class BottomCameraNode(Node):
         # print('alpha h ', alpha_h)
         # print('alpha v ', alpha_v)
         
-        #if z_leg: # for now just checking dx and dy
+        if z_leg_eff: # for now just checking dx and dy
 
-        dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
-        dy = z_cam*np.tan(np.radians(alpha_h))
-        
-        # else: # clipping to only go down by 10 cm increments
+            dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
+            dy = z_cam*np.tan(np.radians(alpha_h))
+            return dx, dy, True #boolean represents if we can just go straight down now
+            
+        else: # clipping to only go down by 10 cm increments
 
-        #     z_leg = 0.1
-        #     z_cam = z_leg+h_cam
+            z_leg_eff = 0.05
+            z_cam = z_leg_eff+h_cam
 
-        #     dx = z_cam*np.tan(np.radians(45)+alpha_v)-l_cam
-        #     dy = z_cam*np.tan(np.radians(45)+alpha_h)-l_cam
+            dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
+            dy = z_cam*np.tan(np.radians(alpha_h))
+            
+            return dx, dy, False
 
             # do the calculations as if we were only 10 cm in the air
-
-        print('dx ', dx, ' dy ', dy)
-            
-
-        return dx, dy
-
-
-    # def publish_camera_msg(self, frame):  # assume frame already in grayscale
-    #     detections = self.detector.detect(frame)
-    #     msg = BottomCamera()
-        
-        
-
-    #     if detections:
-    #         d = detections[0]
-    #         center = d.center
-    #         msg.cx = int(center[0]) # for now
-    #         msg.cy = int(center[1])
-    #         msg.found = True
-    #         _, _ = self.get_april_horiz_distance(msg.cx, msg.cy)
-    #     else:
-    #         msg.cx = -1
-    #         msg.cy = -1
-    #         msg.found = False
-
-    #     self.publisher.publish(msg)
-    #     print('published message')
-
+    
 def main(args = None):
     rclpy.init(args = args)
 

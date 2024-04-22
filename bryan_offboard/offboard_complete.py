@@ -44,7 +44,7 @@ class OffboardControl(Node):
         self.offboard_setpoint_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
-        self.takeoff_height = -0.55 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
+        self.takeoff_height = -0.6 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
         self.april_spotted = False
         self.dist_to_april = 0.0
         self.forward_dist = 0.0
@@ -75,12 +75,6 @@ class OffboardControl(Node):
         self.depth_tracking = True
         self.bottom_spotted = False
         self.last_yaw_positive = True # if yaw ourself out of the way, need to go opposite way
-
-        self.REF_ANGLE_WEST = np.radians(277)
-        self.REF_ANGLE_WEST = np.mod(self.REF_ANGLE_WEST + np.pi, 2*np.pi) - np.pi
-
-        self.dist_to_object_x = []
-        self.dist_to_object_y = []
     
     
     def set_distance_to_april(self, dist: float):
@@ -198,11 +192,11 @@ class OffboardControl(Node):
                 else:
                     self.last_yaw_positive = False
 
-                if dx>2.0 and abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05 and abs(self.target_heading - self.vehicle_local_position.heading) < np.radians(3):
+                if (dx>2.0 or (dx == 0.0 and dy ==0.0)) and abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05 and abs(self.target_heading - self.vehicle_local_position.heading) < np.radians(5):
                     dx, dy = self.body_to_local(0.1, -np.sign(dy)*min(0.1,abs(dy))) # dy needs to be small, for now will run it so that it is
                     self.x_local+=dx
                     self.y_local+=dy
-                    self.target_heading = self.REF_ANGLE_WEST # need to see if this would work better
+                    self.target_heading = np.radians(277) # need to see if this would work better
                     self.target_heading = np.mod(self.target_heading+np.pi, 2*np.pi)-np.pi
                     self.x_local_old = self.x_local
                     self.y_local_old = self.y_local
@@ -268,41 +262,24 @@ class OffboardControl(Node):
 
             # do the calculations as if we were only 10 cm in the air
 
-        # print('dx ', dx, ' dy ', dy)
-            
-
-        
-
-
-    
-
-    # def bottom_listener_callback(self, msg):
-    #     if abs(self.vehicle_local_position.z - self.takeoff_height) < 0.02 and msg.found:
-    #         self.depth_tracking = False
-    #         dx, dy = self.get_april_horiz_distance_no_clip(msg.cx, msg.cy)
-
-    ## going to try new approach: just try going straight over and then down
 
     def bottom_listener_callback(self, msg):
         if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02: # only move once at the appropriate heigt
             if msg.found and not self.bottom_spotted:
                 self.depth_tracking = False
                 self.bottom_spotted = True
-                if abs(self.vehicle_local_position.x-self.x_local) < 0.03 and abs(self.vehicle_local_position.y-self.y_local) < 0.03:
-                    dx, dy, self.land = self.get_april_horiz_distance(msg.cx, msg.cy)
-                    if len(self.dist_to_object_x) < 5:
-                        self.dist_to_object_x.append(dx)
-                        self.dist_to_object_y.append(dy)
-                        self.get_logger().info(f"detected bottom dx, dy as {[dx, dy]}")
-                    else:
-                        if not self.land:
-                            self.takeoff_height += 0.05 # decrease altitude by 5 cm
-                        dx = np.mean(self.dist_to_object_x)
-                        dy = np.mean(self.dist_to_object_y)
-                        dx, dy, = self.body_to_local(dx, dy)
-                        self.x_local= self.vehicle_local_position.x+dx
-                        self.y_local= self.vehicle_local_position.y+dy
-                        self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
+                self.x_local = msg.tx
+                self.y_local = msg.ty
+
+                # dx, dy, self.land = self.get_april_horiz_distance(msg.cx, msg.cy)
+                # self.get_logger().info(f"detected bottom dx, dy as {[dx, dy]}")
+                # if abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05 and abs(self.target_heading - self.vehicle_local_position.heading) < np.radians(5):
+                #     if not self.land:
+                #         self.takeoff_height += 0.05 # decrease altitude by 5 cm
+                #     dx, dy, = self.body_to_local(dx, dy)
+                #     self.x_local= self.vehicle_local_position.x+dx
+                #     self.y_local= self.vehicle_local_position.y+dy
+                #     self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
                 # if abs(self.vehicle_local_position.x - self.x_local) < 0.05 and abs(self.vehicle_local_position.y - self.y_local) < 0.05: # only set new points if previous ones have been reached
                 #    print('local dx, dy ', dx, dy)
                 #    self.publish_position_setpoint(dx, dy, self.takeoff_height, self.target_heading)
@@ -325,7 +302,7 @@ class OffboardControl(Node):
 
 
         elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: # needed so that it stays hovering even when close
-            if self.land:
+            if self.bottom_spotted and abs(self.vehicle_local_position.x - self.x_local) < 0.03 and abs(self.vehicle_local_position.y - self.y_local) > 0.03:
                 self.takeoff_height = 0.0
                 self.get_logger().info('LANDING BC OF PROXIMITY TO BOTTOM TAG')
             self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
