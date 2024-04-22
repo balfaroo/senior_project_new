@@ -192,7 +192,7 @@ class OffboardControl(Node):
                 else:
                     self.last_yaw_positive = False
 
-                if dx>2.0 and abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05:
+                if dx>2.0 and abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05 and abs(self.target_heading - self.vehicle_local_position.heading) < np.radians(3):
                     dx, dy = self.body_to_local(0.1, -np.sign(dy)*min(0.1,abs(dy))) # dy needs to be small, for now will run it so that it is
                     self.x_local+=dx
                     self.y_local+=dy
@@ -202,7 +202,7 @@ class OffboardControl(Node):
                     self.y_local_old = self.y_local
                     self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
 
-                elif dx<=2.0:
+                elif dx<=2.0 and abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05 and abs(self.target_heading - self.vehicle_local_position.heading) < np.radians(3):
                     self.takeoff_height = 0.0
                     self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
                     self.get_logger().info('LANDING BC OF PROXIMITY TO FRONT TAG')
@@ -244,7 +244,7 @@ class OffboardControl(Node):
         # print('alpha h ', alpha_h)
         # print('alpha v ', alpha_v)
         
-        if z_leg_eff < 0.1: # for now just checking dx and dy
+        if z_leg_eff: # for now just checking dx and dy
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(alpha_h))
@@ -252,7 +252,7 @@ class OffboardControl(Node):
             
         else: # clipping to only go down by 10 cm increments
 
-            z_leg_eff = 0.1
+            z_leg_eff = 0.05
             z_cam = z_leg_eff+h_cam
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
@@ -284,12 +284,13 @@ class OffboardControl(Node):
                 self.bottom_spotted = True
                 dx, dy, self.land = self.get_april_horiz_distance(msg.cx, msg.cy)
                 self.get_logger().info(f"detected bottom dx, dy as {[dx, dy]}")
-                if not self.land:
-                    self.takeoff_height += 0.05 # decrease altitude by 5 cm
-                dx, dy, = self.body_to_local(dx, dy)
-                self.x_local= self.vehicle_local_position.x+dx
-                self.y_local= self.vehicle_local_position.y+dy
-                self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
+                if abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05:
+                    if not self.land:
+                        self.takeoff_height += 0.05 # decrease altitude by 5 cm
+                    dx, dy, = self.body_to_local(dx, dy)
+                    self.x_local= self.vehicle_local_position.x+dx
+                    self.y_local= self.vehicle_local_position.y+dy
+                    self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
                 # if abs(self.vehicle_local_position.x - self.x_local) < 0.05 and abs(self.vehicle_local_position.y - self.y_local) < 0.05: # only set new points if previous ones have been reached
                 #    print('local dx, dy ', dx, dy)
                 #    self.publish_position_setpoint(dx, dy, self.takeoff_height, self.target_heading)
