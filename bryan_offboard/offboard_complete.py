@@ -63,6 +63,7 @@ class OffboardControl(Node):
         self.y_local_old = 0.0
 
         self.target_heading = 0.0
+        self.land = False
 
         self.pause_counter = 0 # pause to allow drone to geti
 
@@ -241,10 +242,11 @@ class OffboardControl(Node):
         # print('alpha h ', alpha_h)
         # print('alpha v ', alpha_v)
         
-        if z_leg > 0.1: # for now just checking dx and dy
+        if z_leg < 0.1: # for now just checking dx and dy
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(alpha_h))
+            return dx, dy, True #boolean represents if we can just go straight down now
             
         else: # clipping to only go down by 10 cm increments
 
@@ -253,13 +255,15 @@ class OffboardControl(Node):
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(alpha_h))
+            
+            return dx, dy, False
 
             # do the calculations as if we were only 10 cm in the air
 
         # print('dx ', dx, ' dy ', dy)
             
 
-        return dx, dy
+        
 
 
     
@@ -276,9 +280,10 @@ class OffboardControl(Node):
             if msg.found and not self.bottom_spotted:
                 self.depth_tracking = False
                 self.bottom_spotted = True
-                dx, dy = self.get_april_horiz_distance(msg.cx, msg.cy)
+                dx, dy, self.land = self.get_april_horiz_distance(msg.cx, msg.cy)
                 self.get_logger().info(f"detected bottom dx, dy as {[dx, dy]}")
-                self.takeoff_height += 0.1 # decrease altitude by 10 cm
+                if not self.land:
+                    self.takeoff_height += 0.1 # decrease altitude by 10 cm
                 dx, dy, = self.body_to_local(dx, dy)
                 self.x_local= self.vehicle_local_position.x+dx
                 self.y_local= self.vehicle_local_position.y+dy
@@ -306,7 +311,7 @@ class OffboardControl(Node):
 
 
         elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: # needed so that it stays hovering even when close
-            if self.bottom_spotted and abs(self.x_local-self.vehicle_local_position.x) < 0.02 and abs(self.y_local-self.vehicle_local_position.y) < 0.02:
+            if self.land:
                 self.takeoff_height = 0.0
                 self.get_logger().info('LANDING BC OF PROXIMITY TO BOTTOM TAG')
             self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
