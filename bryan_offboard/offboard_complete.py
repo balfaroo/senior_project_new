@@ -231,10 +231,12 @@ class OffboardControl(Node):
         h_ang_perpx =  h_fov/ncols
         
         h_of = 0.158
+        h_obj = 0.04682 # object height, m
 
         z = abs(self.takeoff_height)
         z_leg = z - h_of
-        z_cam = z_leg+h_cam
+        z_leg_eff = z - h_obj # "effective" altitude of legs - modeling the object as if the ground were on a plane aligned with the top of the object
+        z_cam = z_leg_eff+h_cam
 
         alpha_h = (cx-ncols/2)*h_ang_perpx
         alpha_v = -(cy-nrows/2)*v_ang_perpx
@@ -242,7 +244,7 @@ class OffboardControl(Node):
         # print('alpha h ', alpha_h)
         # print('alpha v ', alpha_v)
         
-        if z_leg < 0.1: # for now just checking dx and dy
+        if z_leg_eff < 0.1: # for now just checking dx and dy
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(alpha_h))
@@ -250,8 +252,8 @@ class OffboardControl(Node):
             
         else: # clipping to only go down by 10 cm increments
 
-            z_leg = 0.1
-            z_cam = z_leg+h_cam
+            z_leg_eff = 0.1
+            z_cam = z_leg_eff+h_cam
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(alpha_h))
