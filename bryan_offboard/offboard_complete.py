@@ -196,7 +196,7 @@ class OffboardControl(Node):
                     dx, dy = self.body_to_local(0.1, -np.sign(dy)*min(0.1,abs(dy))) # dy needs to be small, for now will run it so that it is
                     self.x_local+=dx
                     self.y_local+=dy
-                    self.target_heading = np.radians(277) # need to see if this would work better
+                    self.target_heading = -0.800 # need to see if this would work better
                     self.target_heading = np.mod(self.target_heading+np.pi, 2*np.pi)-np.pi
                     self.x_local_old = self.x_local
                     self.y_local_old = self.y_local
@@ -266,10 +266,13 @@ class OffboardControl(Node):
     def bottom_listener_callback(self, msg):
         if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02: # only move once at the appropriate heigt
             if msg.found and not self.bottom_spotted:
+                self.get_logger().info('SPOTTED OBJECT')
                 self.depth_tracking = False
                 self.bottom_spotted = True
                 self.x_local = msg.tx
                 self.y_local = msg.ty
+
+                self.get_logger().info(f'target positions, {[msg.tx, msg.ty]}')
 
                 # dx, dy, self.land = self.get_april_horiz_distance(msg.cx, msg.cy)
                 # self.get_logger().info(f"detected bottom dx, dy as {[dx, dy]}")
@@ -302,7 +305,7 @@ class OffboardControl(Node):
 
 
         elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: # needed so that it stays hovering even when close
-            if self.bottom_spotted and abs(self.vehicle_local_position.x - self.x_local) < 0.03 and abs(self.vehicle_local_position.y - self.y_local) > 0.03:
+            if self.bottom_spotted and abs(self.vehicle_local_position.x - self.x_local) < 0.05 and abs(self.vehicle_local_position.y - self.y_local) > 0.05:
                 self.takeoff_height = 0.0
                 self.get_logger().info('LANDING BC OF PROXIMITY TO BOTTOM TAG')
             self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)

@@ -7,6 +7,7 @@ import cv2
 from pupil_apriltags import Detector, Detection
 from bryan_msgs.msg import DepthCamera
 import depthai as dai
+import time
 
 def get_depth_coords(x_rgb, y_rgb, rgb_width = 640, rgb_height = 480, depth_width = 640, depth_height = 400):
     RGB_FOV_HORIZONTAL = 50 # deg
@@ -58,7 +59,7 @@ class DepthCameraNode(Node):
         self.msg.dy = 0.0
         self.msg.yaw = 0.0
         self.msg.spotted = False
-        self.timer = self.create_timer(0.2, self.timer_callback)
+        self.timer = self.create_timer(0.1, self.timer_callback)
     
     def set_message(self, msg):
         self.msg = msg
@@ -248,6 +249,7 @@ def main(args = None):
             rclpy.spin_once(node)
             msg.spotted = False
             msg.yaw = 0.0
+            time.sleep(0.3)
 
 
 if __name__ == '__main__':

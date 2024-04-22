@@ -32,9 +32,11 @@ class BottomCameraNode(Node):
         )
 
         self.vehicle_local_position = VehicleLocalPosition()
+        self.vehicle_local_position_subscriber = self.create_subscription(
+            VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
 
 
-        self.publisher = self.create_publisher(BottomCamera, 'bottom_camera', 10)
+        self.publisher = self.create_publisher(BottomCamera, 'bottom_camera', qos_profile)
         self.timer = self.create_timer(0.5, self.timer_callback)
         self.cap = cv2.VideoCapture(0)
 
@@ -67,6 +69,7 @@ class BottomCameraNode(Node):
             msg.cx = int(detections[0].center[0])
             msg.cy =int(detections[0].center[1])
             msg.tx, msg.ty, _ = self.get_april_horiz_distance(msg.cx, msg.cy)
+            print(msg.tx, msg.ty)
             msg.tx, msg.ty = self.body_to_local(msg.tx, msg.ty)
             msg.tx = self.vehicle_local_position.x + msg.tx
             msg.ty = self.vehicle_local_position.y + msg.ty
@@ -96,6 +99,7 @@ class BottomCameraNode(Node):
         h_obj = 0.04682 # object height, m
 
         z = abs(self.vehicle_local_position.z)
+        print(z)
         z_leg = z - h_of
         z_leg_eff = z_leg - h_obj # "effective" altitude of legs - modeling the object as if the ground were on a plane aligned with the top of the object
         z_cam = z_leg_eff+h_cam

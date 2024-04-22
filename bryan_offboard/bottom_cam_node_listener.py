@@ -20,7 +20,7 @@ class Listner(Node):
                 depth=1
         )
 
-        self.subscription = self.create_subscription(BottomCamera, 'bottom_camera', self.listener_callback, 10)
+        self.subscription = self.create_subscription(BottomCamera, 'bottom_camera', self.listener_callback, qos_profile)
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_local_position_subscriber = self.create_subscription(
             VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
@@ -28,7 +28,7 @@ class Listner(Node):
     def listener_callback(self, msg):
         if msg.found:
             dx,dy = self.get_april_horiz_distance(msg.cx, msg.cy)
-            print(dx, dy)
+            print(msg.tx, msg.ty)
 
     def get_april_horiz_distance(self, cx, cy):
         h_cam = 0.063
