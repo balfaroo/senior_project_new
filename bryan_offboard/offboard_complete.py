@@ -44,7 +44,7 @@ class OffboardControl(Node):
         self.offboard_setpoint_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
-        self.takeoff_height = -0.5 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
+        self.takeoff_height = -0.45 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
         self.april_spotted = False
         self.dist_to_april = 0.0
         self.forward_dist = 0.0
@@ -190,7 +190,7 @@ class OffboardControl(Node):
                     self.last_yaw_positive = False
 
                 if dx>2.0 and abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05:
-                    dx, dy = self.body_to_local(0.2, -np.sign(dy)*min(0.2,abs(dy))) # dy needs to be small, for now will run it so that it is
+                    dx, dy = self.body_to_local(0.1, -np.sign(dy)*min(0.2,abs(dy))) # dy needs to be small, for now will run it so that it is
                     self.x_local+=dx
                     self.y_local+=dy
                     self.target_heading += yaw # need to see if this would work better
@@ -206,9 +206,9 @@ class OffboardControl(Node):
 
             else:
                 if self.last_yaw_positive:
-                    self.target_heading -= np.radians(10.0)
+                    self.target_heading -= np.radians(2.5)
                 else:
-                    self.target_heading += np.radians(10.0)
+                    self.target_heading += np.radians(2.5)
                 self.target_heading = np.mod(self.target_heading+np.pi, 2*np.pi)-np.pi
                 self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)                
 
