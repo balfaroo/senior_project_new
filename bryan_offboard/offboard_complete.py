@@ -44,7 +44,7 @@ class OffboardControl(Node):
         self.offboard_setpoint_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
-        self.takeoff_height = -0.45 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
+        self.takeoff_height = -0.55 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
         self.april_spotted = False
         self.dist_to_april = 0.0
         self.forward_dist = 0.0
