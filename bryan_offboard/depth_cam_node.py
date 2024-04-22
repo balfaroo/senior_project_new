@@ -58,7 +58,7 @@ class DepthCameraNode(Node):
         self.msg.dy = 0.0
         self.msg.yaw = 0.0
         self.msg.spotted = False
-        self.timer = self.create_timer(0.1, self.timer_callback)
+        self.timer = self.create_timer(0.2, self.timer_callback)
     
     def set_message(self, msg):
         self.msg = msg
@@ -191,8 +191,9 @@ def main(args = None):
             spatialData = spatialCalcQueue.get().getSpatialLocations()
             gray = cv2.cvtColor(inRgb, cv2.COLOR_RGB2GRAY) 
             detections = detector.detect(gray, estimate_tag_pose=True, camera_params=[fx, fy, cx, cy], tag_size=L_paper)
-            if detections:
-                d = detections[0]
+            for d in detections:
+                if d.tag_id != 0:
+                    continue
                 center = d.center
                 cx = center[0]
                 cy = center[1]
@@ -227,6 +228,7 @@ def main(args = None):
                         msg.dx = depthData.spatialCoordinates.z
                         msg.dy = depthData.spatialCoordinates.x
                         msg.spotted = True
+                        print(msg.dx, msg.dy)
 
                         pose_R = d.pose_R
                         try:
@@ -234,51 +236,6 @@ def main(args = None):
                         except:
                             msg.yaw = 0.0
                     # Show the frame
-                    
-
-                    key = cv2.waitKey(1)
-                    if key == ord('q'):
-                        break
-                    elif key == ord('w'):
-                        if topLeft.y - stepSize >= 0:
-                            topLeft.y -= stepSize
-                            bottomRight.y -= stepSize
-                            newConfig = True
-                    elif key == ord('a'):
-                        if topLeft.x - stepSize >= 0:
-                            topLeft.x -= stepSize
-                            bottomRight.x -= stepSize
-                            newConfig = True
-                    elif key == ord('s'):
-                        if bottomRight.y + stepSize <= 1:
-                            topLeft.y += stepSize
-                            bottomRight.y += stepSize
-                            newConfig = True
-                    elif key == ord('d'):
-                        if bottomRight.x + stepSize <= 1:
-                            topLeft.x += stepSize
-                            bottomRight.x += stepSize
-                            newConfig = True
-                    elif key == ord('1'):
-                        calculationAlgorithm = dai.SpatialLocationCalculatorAlgorithm.MEAN
-                        print('Switching calculation algorithm to MEAN!')
-                        newConfig = True
-                    elif key == ord('2'):
-                        calculationAlgorithm = dai.SpatialLocationCalculatorAlgorithm.MIN
-                        print('Switching calculation algorithm to MIN!')
-                        newConfig = True
-                    elif key == ord('3'):
-                        calculationAlgorithm = dai.SpatialLocationCalculatorAlgorithm.MAX
-                        print('Switching calculation algorithm to MAX!')
-                        newConfig = True
-                    elif key == ord('4'):
-                        calculationAlgorithm = dai.SpatialLocationCalculatorAlgorithm.MODE
-                        print('Switching calculation algorithm to MODE!')
-                        newConfig = True
-                    elif key == ord('5'):
-                        calculationAlgorithm = dai.SpatialLocationCalculatorAlgorithm.MEDIAN
-                        print('Switching calculation algorithm to MEDIAN!')
-                        newConfig = True
 
                     if newConfig:
                         config.roi = dai.Rect(topLeft, bottomRight)

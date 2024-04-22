@@ -295,9 +295,8 @@ class OffboardControl(Node):
                 #    self.publish_position_setpoint(dx, dy, self.takeoff_height, self.target_heading)
                 print('detected apriltag!')
             else:
-                pass
-                # self.target_heading += np.radians(5)
-                # self.target_heading = np.mod(self.target_heading + np.pi, 2*np.pi) - np.pi
+                self.target_heading += np.radians(5)
+                self.target_heading = np.mod(self.target_heading + np.pi, 2*np.pi) - np.pi
                 # self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading) # last argument angle increment in degrees
 
 
