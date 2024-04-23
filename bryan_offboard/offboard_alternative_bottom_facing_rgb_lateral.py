@@ -198,8 +198,12 @@ class OffboardControl(Node):
                 else:
                     self.last_yaw_positive = False
 
+                    
+
                 if (dx>2.0 or (dx == 0.0 and dy ==0.0)):
-                    dx, dy = self.body_to_local(0.1, -np.sign(dy)*min(0.1,abs(dy))) # dy needs to be small, for now will run it so that it is
+                    dx = min(0.1, abs(dx-2.0))
+                    dy = np.sign(dy)*min(0.1, abs(dy))
+                    dx, dy = self.body_to_local(dx, dy) # dy needs to be small, for now will run it so that it is
                     self.x_local = self.vehicle_local_position.x+dx
                     self.y_local = self.vehicle_local_position.y+dy
                     self.target_heading = self.REF_YAW#self.vehicle_local_position.heading+yaw# need to see if this would work better
@@ -211,6 +215,9 @@ class OffboardControl(Node):
                     #self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
                     self.get_logger().info('LANDING BC OF PROXIMITY TO FRONT TAG')
                 elif dx <= 2.0:
+                    dx = min(0.1, abs(dx-2.0))
+                    dy = np.sign(dy)*min(0.1, abs(dy))
+                    dx, dy = self.body_to_local(dx, dy)
                     self.x_local = self.vehicle_local_position.x
                     self.y_local = self.vehicle_local_position.y+dy
 
