@@ -33,7 +33,9 @@ setup(
             'new_bottom = bryan_offboard.bottom_facing_cam:main',
             'new_depth = bryan_offboard.depth_cam_lateral_rgb:main',
             'new_depth_listener = bryan_offboard.depth_listener_new:main',
-            'offboard_new = bryan_offboard.offboard_alternative_bottom_facing_rgb_lateral:main'
+            'offboard_new = bryan_offboard.offboard_alternative_bottom_facing_rgb_lateral:main',
+            'pickup_from_underneath = bryan_offboard.pickup_from_underneath:main',
+            'drop_object = bryan_offboard.drop_object:main'
         ],
     },
 )
