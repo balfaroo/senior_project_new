@@ -20,7 +20,7 @@ class Listner(Node):
                 depth=1
         )
 
-        self.subscription = self.create_subscription(BottomCamera, 'bottom_camera', self.listener_callback, qos_profile)
+        self.subscription = self.create_subscription(BottomCamera, 'bottom_camera', self.listener_callback, 10)
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_local_position_subscriber = self.create_subscription(
             VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)

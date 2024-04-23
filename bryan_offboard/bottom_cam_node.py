@@ -63,12 +63,13 @@ class BottomCameraNode(Node):
         msg = BottomCamera()
         msg.cx = -1
         msg.cy = -1
+        msg.land = False
         if detections:
             cv2.imwrite('image.png', gray)
             msg.found = True
             msg.cx = int(detections[0].center[0])
             msg.cy =int(detections[0].center[1])
-            msg.tx, msg.ty, _ = self.get_april_horiz_distance(msg.cx, msg.cy)
+            msg.tx, msg.ty, msg.land = self.get_april_horiz_distance(msg.cx, msg.cy)
             print(msg.tx, msg.ty)
             msg.tx, msg.ty = self.body_to_local(msg.tx, msg.ty)
             msg.tx = self.vehicle_local_position.x + msg.tx
@@ -118,7 +119,7 @@ class BottomCameraNode(Node):
             
         else: # clipping to only go down by 10 cm increments
 
-            z_leg_eff = 0.05
+            z_leg_eff = 0.1
             z_cam = z_leg_eff+h_cam
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
