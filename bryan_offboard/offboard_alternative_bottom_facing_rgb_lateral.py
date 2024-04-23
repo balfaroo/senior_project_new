@@ -168,18 +168,6 @@ class OffboardControl(Node):
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.vehicle_command_publisher.publish(msg)
 
-    def move_as_commanded(self):
-        local_dx, local_dy, local_yaw = self.body_to_local()
-        msg = TrajectorySetpoint()
-        msg.position = [local_dx + self.x_local, local_dy + self.y_local, self.z_inst] # could potentially be better to just do vehicle_local_position.x or .y
-        msg.yaw = local_yaw
-        self.x_local += local_dx
-        self.y_local += local_dy
-        msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
-        self.trajectory_setpoint_publisher.publish(msg)
-        #self.get_logger().info(f"Publishing position setpoints {[self.x_local, self.y_local, self.takeoff_height, np.degrees(local_yaw)]}")
-
-
     def depth_listener_callback(self, msg):
 
         if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02 and self.depth_tracking: # only move once at the appropriate height and if not tracking by the bottom camera
@@ -293,8 +281,7 @@ class OffboardControl(Node):
                     dy = np.sign(dy)*min(0.1, abs(dy)) # check if need minus sign
                     self.x_local = self.vehicle_local_position.x+dx
                     self.y_local = self.vehicle_local_position.y+dy
-                if self.land:
-                    self.takeoff_height = 0.0
+          
                     
                 # if not msg.land:
                 #     self.takeoff_height += 0.1
@@ -321,7 +308,7 @@ class OffboardControl(Node):
 
 
         elif self.armed and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: # needed so that it stays hovering even when close
-            if self.land and abs(self.vehicle_local_position.x - self.x_local) < 0.05 and abs(self.vehicle_local_position.y - self.y_local) < 0.05:
+            if self.land and abs(self.vehicle_local_position.x - self.x_local) < 0.03 and abs(self.vehicle_local_position.y - self.y_local) < 0.03:
                 self.takeoff_height = 0.0
                 self.get_logger().info('LANDING BC OF PROXIMITY TO BOTTOM TAG')
             self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
