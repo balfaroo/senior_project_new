@@ -34,6 +34,8 @@ class OffboardControl(Node):
         self.vehicle_command_publisher = self.create_publisher(
             VehicleCommand, '/fmu/in/vehicle_command', qos_profile)
 
+        self.depth_tracking=True
+
         # Create subscribers
         self.vehicle_local_position_subscriber = self.create_subscription(
             VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
@@ -64,7 +66,7 @@ class OffboardControl(Node):
 
         self.target_heading = 0.0
         self.land = False
-
+        self.armed = False
         self.pause_counter = 0 # pause to allow drone to geti
 
         # Create a timer to publish control commands
@@ -214,6 +216,7 @@ class OffboardControl(Node):
             self.engage_offboard_mode()
             self.get_logger().info('arming drone')
             self.arm()
+            self.offboard_setpoint_counter+=1
 
 
         elif self.armed and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: # needed so that it stays hovering even when close

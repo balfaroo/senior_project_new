@@ -41,14 +41,16 @@ class OffboardControl(Node):
             VehicleStatus, '/fmu/out/vehicle_status', self.vehicle_status_callback, qos_profile)
 
         # Initialize variables
+        self.armed = False
         self.offboard_setpoint_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
-        self.takeoff_height = -0.5 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
+        self.takeoff_height = -0.4 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
 
 
         self.x_local = 0.0 # vars for tracking positions
         self.y_local = 0.0 
+        self.land_height = 0.0
 
         self.target_heading = 0.0
 
@@ -165,6 +167,8 @@ class OffboardControl(Node):
 
         if self.offboard_setpoint_counter == 10: 
             self.target_heading = self.vehicle_local_position.heading
+            self.land_height = self.vehicle_local_position.z
+            self.offboard_setpoint_counter+=1
             self.engage_offboard_mode()
             self.get_logger().info('arming drone')
             self.arm()
@@ -172,27 +176,26 @@ class OffboardControl(Node):
 
         elif self.armed and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: # needed so that it stays hovering even when close
             self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
-            if abs(self.vehicle_local_position.z - self.takeoff_height) < 0.02 and self.offboard_setpoint_counter < 31:
+            if abs(self.vehicle_local_position.z - self.takeoff_height) < 0.05 and self.offboard_setpoint_counter < 21:
                 self.offboard_setpoint_counter += 1
-                self.servo.min()
-            if abs(self.vehicle_local_position.z - self.takeoff_height) < 0.02 and self.offboard_setpoint_counter < 41:
+                self.get_logger().info('set servo to min')
+            if abs(self.vehicle_local_position.z - self.takeoff_height) < 0.05 and self.offboard_setpoint_counter < 31 and self.offboard_setpoint_counter >= 21:
                 self.offboard_setpoint_counter += 1
             
             
 
+
+        if self.offboard_setpoint_counter == 20:
+            self.offboard_setpoint_counter += 1
+            self.takeoff_height = self.land_height     
 
         if self.offboard_setpoint_counter == 30:
             self.offboard_setpoint_counter += 1
-            self.takeoff_height = 0.0     
-
-        if self.offboard_setpoint_counter == 40:
-            self.offboard_setpoint_counter += 1
-            self.takeoff_height = -0.5  
+            self.takeoff_height = -0.4  
 
 
         if self.offboard_setpoint_counter < 11:
             self.offboard_setpoint_counter += 1
-            self.initial_heading = self.offboard_setpoint_counter+self.initial_heading/(self.offboard_setpoint_counter+1) + self.vehicle_local_position.heading/(self.offboard_setpoint_counter+1)
 
 
 def main(args=None) -> None:
