@@ -173,7 +173,7 @@ class OffboardControl(Node):
 
     def depth_listener_callback(self, msg):
 
-        if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02 and self.depth_tracking: # only move once at the appropriate height and if not tracking by the bottom camera
+        if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02 and self.fly_away: # only move once at the appropriate height and if not tracking by the bottom camera
             if msg.spotted:
                 dx = msg.dx/1000
                 dy = msg.dy/1000

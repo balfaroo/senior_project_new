@@ -249,7 +249,7 @@ def main(args = None):
             rclpy.spin_once(node)
             msg.spotted = False
             msg.yaw = 0.0
-            time.sleep(0.3)
+            #time.sleep(0.3)
 
 
 if __name__ == '__main__':

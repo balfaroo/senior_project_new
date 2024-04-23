@@ -36,7 +36,7 @@ class BottomCameraNode(Node):
             VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
 
 
-        self.publisher = self.create_publisher(BottomCamera, 'bottom_camera', qos_profile)
+        self.publisher = self.create_publisher(BottomCamera, 'bottom_camera', 10)
         self.timer = self.create_timer(0.5, self.timer_callback)
         self.cap = cv2.VideoCapture(0)
 

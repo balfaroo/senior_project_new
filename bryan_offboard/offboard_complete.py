@@ -44,7 +44,7 @@ class OffboardControl(Node):
         self.offboard_setpoint_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
-        self.takeoff_height = -0.6 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
+        self.takeoff_height = -0.45 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
         self.april_spotted = False
         self.dist_to_april = 0.0
         self.forward_dist = 0.0
@@ -75,6 +75,7 @@ class OffboardControl(Node):
         self.depth_tracking = True
         self.bottom_spotted = False
         self.last_yaw_positive = True # if yaw ourself out of the way, need to go opposite way
+        self.REF_YAW = np.radians(277.0)
     
     
     def set_distance_to_april(self, dist: float):
@@ -194,9 +195,9 @@ class OffboardControl(Node):
 
                 if (dx>2.0 or (dx == 0.0 and dy ==0.0)) and abs(self.vehicle_local_position.x-self.x_local) < 0.05 and abs(self.vehicle_local_position.y-self.y_local) < 0.05 and abs(self.target_heading - self.vehicle_local_position.heading) < np.radians(5):
                     dx, dy = self.body_to_local(0.1, -np.sign(dy)*min(0.1,abs(dy))) # dy needs to be small, for now will run it so that it is
-                    self.x_local+=dx
-                    self.y_local+=dy
-                    self.target_heading = -0.800 # need to see if this would work better
+                    self.x_local = self.vehicle_local_position.x+dx
+                    self.y_local = self.vehicle_local_position.y+dy
+                    self.target_heading = self.REF_YAW#self.vehicle_local_position.heading+yaw# need to see if this would work better
                     self.target_heading = np.mod(self.target_heading+np.pi, 2*np.pi)-np.pi
                     self.x_local_old = self.x_local
                     self.y_local_old = self.y_local
@@ -209,9 +210,9 @@ class OffboardControl(Node):
 
             else:
                 if self.last_yaw_positive:
-                    self.target_heading -= np.radians(2.5)
+                    self.target_heading = self.vehicle_local_position.heading - np.radians(5)
                 else:
-                    self.target_heading += np.radians(2.5)
+                    self.target_heading = self.vehicle_local_position.heading + np.radians(5)
                 self.target_heading = np.mod(self.target_heading+np.pi, 2*np.pi)-np.pi
                 self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)                
 
@@ -288,7 +289,7 @@ class OffboardControl(Node):
                 #    self.publish_position_setpoint(dx, dy, self.takeoff_height, self.target_heading)
                 print('detected apriltag!')
             else:
-                self.target_heading += np.radians(5)
+                self.target_heading = self.vehicle_local_position.heading + np.radians(5)
                 self.target_heading = np.mod(self.target_heading + np.pi, 2*np.pi) - np.pi
                 # self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading) # last argument angle increment in degrees
 
