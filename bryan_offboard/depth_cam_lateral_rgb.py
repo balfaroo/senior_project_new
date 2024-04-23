@@ -175,8 +175,8 @@ def main(args = None):
 
             msg.spotted = False
             msg.yaw = 0.0
-            msg.cx = -1
-            msg.cy = -1
+            msg.cx = -1.0
+            msg.cy = -1.0
             # print('looped')
             inDepth = depthQueue.get() # Blocking call, will wait until a new data has arrived
 
