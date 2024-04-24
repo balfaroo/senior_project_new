@@ -82,8 +82,8 @@ class BottomCameraNode(Node):
         #print('published message')
         
     def get_april_horiz_distance(self, cx, cy):
-        h_cam = 0.063 # check
-        l_cam = 0.063 # check
+        h_cam = 0.083 # check
+        l_cam = 0.084 # check
         h_fov = 41 # check
         v_fov = 66 # check
 

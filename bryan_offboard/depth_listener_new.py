@@ -45,7 +45,7 @@ class Listener(Node):
             rgb_hz_angpp = HFOV/640
             h_angle = np.radians((cx-NCOLS/2)*rgb_hz_angpp)
             dy = dx*np.tan(h_angle)
-            print('dx: ', dx, 'dy: ', dy)
+            print('old dy: ', msg.dy/1000, 'dy: ', dy)
             dx, dy = self.body_to_local(0.2, -np.sign(dy)*min(0.2,abs(dy))) # dy needs to be small, for now will run it so that it is
             # print('would send dx, ', dx, ' would send dy, ', dy, ' and would yaw by', yaw)
 

@@ -31,8 +31,8 @@ class Listner(Node):
             print(msg.tx, msg.ty)
 
     def get_april_horiz_distance(self, cx, cy):
-        h_cam = 0.063
-        l_cam = 0.063
+        h_cam = 0.083
+        l_cam = 0.084
         h_fov = 41
         v_fov = 66
 
@@ -68,7 +68,7 @@ class Listner(Node):
             z_leg = 0.1
             z_cam = z_leg+h_cam
 
-            dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
+            dx = z_cam*np.tan(np.radians(alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(alpha_h))-l_cam
 
             # do the calculations as if we were only 10 cm in the air

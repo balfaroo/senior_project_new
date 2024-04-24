@@ -200,6 +200,7 @@ def main(args = None):
             for d in detections:
                 if d.tag_id != 0:
                     continue
+                cv2.imwrite('depthrgb.png', inRgb)
                 center = d.center
                 cx = center[0]
                 cy = center[1]

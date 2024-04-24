@@ -44,7 +44,7 @@ class OffboardControl(Node):
         self.offboard_setpoint_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
-        self.takeoff_height = -0.45 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
+        self.takeoff_height = -0.55 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
         self.april_spotted = False
         self.dist_to_april = 0.0
         self.forward_dist = 0.0
@@ -63,19 +63,21 @@ class OffboardControl(Node):
         self.y_local_old = 0.0
 
         self.target_heading = 0.0
-        self.land = False
+        self.to_land = False
+        self.armed = False
+        self.initial_height = 0.0
 
         self.pause_counter = 0 # pause to allow drone to geti
 
         # Create a timer to publish control commands
         self.timer = self.create_timer(0.1, self.timer_callback)
-        self.subscription_depth = self.create_subscription(DepthCamera, 'depth_camera', self.depth_listener_callback, 10)
+        # self.subscription_depth = self.create_subscription(DepthCamera, 'depth_camera', self.depth_listener_callback, 10)
         self.subscription_bottom =self.create_subscription(BottomCamera, 'bottom_camera', self.bottom_listener_callback, 10)
 
         self.depth_tracking = True
         self.bottom_spotted = False
         self.last_yaw_positive = True # if yaw ourself out of the way, need to go opposite way
-        self.REF_YAW = np.radians(241.0)
+        self.REF_YAW = np.radians(273.0)
     
     
     def set_distance_to_april(self, dist: float):
@@ -187,27 +189,29 @@ class OffboardControl(Node):
                     self.last_yaw_positive = False
 
                     
+                if abs(self.vehicle_local_position.x - self.x_local) < 0.03 and abs(self.vehicle_local_position.y - self.y_local) < 0.03:
+                    if (dx>2.0 or (dx == 0.0 and dy ==0.0)):
+                        dx = min(0.1, abs(dx-2.0))
+                        dy = -np.sign(dy)*min(0.1, abs(dy))
+                        dx, dy = self.body_to_local(dx, dy) # dy needs to be small, for now will run it so that it is
+                        self.x_local = self.vehicle_local_position.x+dx
+                        self.y_local = self.vehicle_local_position.y+dy
+                        self.target_heading = self.REF_YAW#self.vehicle_local_position.heading+yaw# need to see if this would work better
+                        self.target_heading = np.mod(self.target_heading+np.pi, 2*np.pi)-np.pi
+                        #self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
 
-                if (dx>2.0 or (dx == 0.0 and dy ==0.0)):
-                    dx = min(0.1, abs(dx-2.0))
-                    dy = -np.sign(dy)*min(0.1, abs(dy))
-                    dx, dy = self.body_to_local(dx, dy) # dy needs to be small, for now will run it so that it is
-                    self.x_local = self.vehicle_local_position.x+dx
-                    self.y_local = self.vehicle_local_position.y+dy
-                    self.target_heading = self.REF_YAW#self.vehicle_local_position.heading+yaw# need to see if this would work better
-                    self.target_heading = np.mod(self.target_heading+np.pi, 2*np.pi)-np.pi
-                    #self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
-
-                elif dx<=2.0 and abs(dy < 0.05):
-                    self.takeoff_height = 0.0
-                    #self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
-                    self.get_logger().info('LANDING BC OF PROXIMITY TO FRONT TAG')
-                elif dx <= 2.0:
-                    dx = min(0.1, abs(dx-2.0))
-                    dy = np.sign(dy)*min(0.1, abs(dy))
-                    dx, dy = self.body_to_local(dx, dy)
-                    self.x_local = self.vehicle_local_position.x
-                    self.y_local = self.vehicle_local_position.y+dy
+                    elif dx<=2.0 and abs(dy < 0.05):
+                        self.takeoff_height = 0.0
+                        #self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
+                        self.get_logger().info('LANDING BC OF PROXIMITY TO FRONT TAG')
+                    elif dx <= 2.0:
+                        dx = min(0.1, abs(dx-2.0))
+                        dy = np.sign(dy)*min(0.1, abs(dy))
+                        dx, dy = self.body_to_local(dx, dy)
+                        self.x_local = self.vehicle_local_position.x
+                        self.y_local = self.vehicle_local_position.y+dy
+                    
+                    self.target_heading = self.REF_YAW
 
             else:
                 if self.last_yaw_positive:
@@ -218,8 +222,8 @@ class OffboardControl(Node):
                 #self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)                
 
     def get_april_horiz_distance(self, cx, cy):
-        h_cam = 0.063
-        l_cam = 0.063
+        h_cam = 0.083
+        l_cam = 0.084
         h_fov = 41
         v_fov = 66
 
@@ -248,9 +252,9 @@ class OffboardControl(Node):
         
         if z_leg_eff: # for now just checking dx and dy
 
-            dx = z_cam*np.tan(np.radians(alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
+            dx = z_cam*np.tan(np.radians(alpha_v))-l_cam #0.1 corrective factor  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(alpha_h))
-            if abs(dx) < 0.03 and abs(dy) < 0.03:
+            if z_leg_eff < 0.2:
                 return dx, dy, True #boolean represents if we can just go straight down now
             else:
                 return dx, dy, False
@@ -260,7 +264,7 @@ class OffboardControl(Node):
             z_leg_eff = 0.05
             z_cam = z_leg_eff+h_cam
 
-            dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
+            dx = z_cam*np.tan(np.radians(alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(alpha_h))
             
             return dx, dy, False
@@ -270,28 +274,37 @@ class OffboardControl(Node):
 
     def bottom_listener_callback(self, msg):
         if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02: # only move once at the appropriate heigt
-            if msg.found and not self.bottom_spotted:
+            if msg.found:
                 self.get_logger().info('SPOTTED OBJECT')
                 self.depth_tracking = False
                 self.bottom_spotted = True
                 if abs(self.vehicle_local_position.x - self.x_local) < 0.05 and abs(self.vehicle_local_position.y - self.y_local) < 0.05 and abs(self.vehicle_local_position.z - self.takeoff_height) < 0.02:
-                    dx, dy, self.land = self.get_april_horiz_distance(msg.cx, msg.cy)
+                    dx, dy, self.to_land = self.get_april_horiz_distance(msg.cx, msg.cy)
                     dx, dy = self.body_to_local(dx, dy)
-                    dx = np.sign(dx)*min(0.1, abs(dx))
-                    dy = np.sign(dy)*min(0.1, abs(dy)) # check if need minus sign
+                    # dx = np.sign(dx)*min(0.1, abs(dx))
+                    # dy = np.sign(dy)*min(0.1, abs(dy)) # check if need minus sign
                     self.x_local = self.vehicle_local_position.x+dx
                     self.y_local = self.vehicle_local_position.y+dy
+                    if self.to_land:
+                        self.takeoff_height = 0.0
+                    else:
+                        self.takeoff_height += 0.025
           
                     
                 # if not msg.land:
                 #     self.takeoff_height += 0.1
 
-                self.get_logger().info(f'target positions, {[msg.tx, msg.ty]}')
+                    self.get_logger().info(f'delta positions, {[dx, dy]}')
 
                 print('detected apriltag!')
             else:
-                self.target_heading = self.vehicle_local_position.heading + np.radians(5)
-                self.target_heading = np.mod(self.target_heading + np.pi, 2*np.pi) - np.pi
+                pass
+                if abs(self.vehicle_local_position.x - self.x_local) < 0.05 and abs(self.vehicle_local_position.y - self.y_local) < 0.05 and abs(self.vehicle_local_position.z - self.takeoff_height) < 0.02:
+                    dx, dy = self.body_to_local(0.05 ,0.0)
+                    self.x_local = self.vehicle_local_position.x + dx
+                    self.y_local = self.vehicle_local_position.y + dy
+                # self.target_heading = self.vehicle_local_position.heading + np.radians(5)
+                # self.target_heading = np.mod(self.target_heading + np.pi, 2*np.pi) - np.pi
                 # self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading) # last argument angle increment in degrees
 
 
@@ -299,18 +312,22 @@ class OffboardControl(Node):
         """Callback function for the timer."""
         self.publish_offboard_control_heartbeat_signal()
 
+
         if self.offboard_setpoint_counter == 15: ## raised delay to 1.5 s for heading to stabilitze
-            self.target_heading = self.vehicle_local_position.heading
             self.REF_YAW = self.vehicle_local_position.heading
+            self.target_heading = self.REF_YAW
             self.engage_offboard_mode()
             self.get_logger().info('arming drone')
             self.arm()
+            self.offboard_setpoint_counter+=1
+            self.initial_height = self.vehicle_local_position.z
 
 
         elif self.armed and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: # needed so that it stays hovering even when close
-            if self.land and abs(self.vehicle_local_position.x - self.x_local) < 0.03 and abs(self.vehicle_local_position.y - self.y_local) < 0.03:
-                self.takeoff_height = 0.0
+            if (abs(self.takeoff_height - self.initial_height)<0.02 or abs(self.takeoff_height) < abs(self.initial_height)) and abs(self.vehicle_local_position.z - self.initial_height) < 0.02:
+                self.land()
                 self.get_logger().info('LANDING BC OF PROXIMITY TO BOTTOM TAG')
+                exit(0)
             self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
 
         if self.offboard_setpoint_counter < 16:
