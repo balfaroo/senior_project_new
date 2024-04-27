@@ -185,8 +185,6 @@ class OffboardControl(Node):
                     self.y_local = self.vehicle_local_position.y+dy
                     self.target_heading = self.REF_YAW#self.vehicle_local_position.heading+yaw# need to see if this would work better
                     self.target_heading = np.mod(self.target_heading+np.pi, 2*np.pi)-np.pi
-                    self.x_local_old = self.x_local
-                    self.y_local_old = self.y_local
                     #self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
 
                 elif dx<=2.0 and abs(dy < 0.05):

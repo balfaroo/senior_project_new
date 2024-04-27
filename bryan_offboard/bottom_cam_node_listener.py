@@ -28,7 +28,7 @@ class Listner(Node):
     def listener_callback(self, msg):
         if msg.found:
             dx,dy = self.get_april_horiz_distance(msg.cx, msg.cy)
-            print(msg.tx, msg.ty)
+            print(dx, dy)
 
     def get_april_horiz_distance(self, cx, cy):
         h_cam = 0.083
@@ -60,7 +60,7 @@ class Listner(Node):
         
         if z_leg: # for now just checking dx and dy
 
-            dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
+            dx = z_cam*np.tan(np.radians(alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(alpha_h))
             
         else: # clipping to only go down by 10 cm increments
