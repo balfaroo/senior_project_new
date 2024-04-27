@@ -1,16 +1,17 @@
 from gpiozero import Servo
 from time import sleep
 
-servo = Servo(26)
+servo = Servo(27)
 
 try:
-    while True:
+    #while True:
     # 	servo.min()
     # 	sleep(0.5)
-        servo.value = 0.2
-        sleep(2)
+    servo.value = 0.25
+    sleep(0.5)
+        # break
         # servo.max()
-    print('servo in max position')
+    print('servo in open position')
     #sleep(0.5)
 except KeyboardInterrupt:
     print("Program stopped")

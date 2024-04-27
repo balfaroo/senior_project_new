@@ -1,13 +1,13 @@
 from gpiozero import Servo
 from time import sleep
 
-servo = Servo(26)
+servo = Servo(27)
 
 try:
     while True:
         servo.min()
         sleep(0.5)
-        servo.mid()
+        servo.value = 0.25
         sleep(0.5)
         #servo.max()
     print('servo in min position')
