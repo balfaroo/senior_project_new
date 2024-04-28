@@ -52,6 +52,7 @@ class OffboardControl(Node):
         self.forward_dist = 0.0
         self.forward_step_size = 0.1
         self.initial_heading = 0.0
+        self.last_yaw_positive = True
 
         self.dx_inst = 0.0 # local x north, y east. body x forward, y right. need to convert with heading. these coordinates are in body fram
         self.dy_inst = 0.0
@@ -73,7 +74,7 @@ class OffboardControl(Node):
         self.timer = self.create_timer(0.1, self.timer_callback)
         self.subscription_depth = self.create_subscription(DepthCamera, 'depth_camera', self.depth_listener_callback, 10)
 
-        self.REF_YAW = np.radians(241.0)
+        self.REF_YAW = np.radians(277.0)
     
     
     def set_distance_to_april(self, dist: float):
@@ -180,7 +181,7 @@ class OffboardControl(Node):
                     self.last_yaw_positive = False
 
                 if (dx>2.0 or (dx == 0.0 and dy ==0.0)):
-                    dx, dy = self.body_to_local(0.1, -np.sign(dy)*min(0.1,abs(dy))) # dy needs to be small, for now will run it so that it is
+                    dx, dy = self.body_to_local(min(0.1, abs(2.0-dx)), -np.sign(dy)*min(0.1,abs(dy))) # dy needs to be small, for now will run it so that it is
                     self.x_local = self.vehicle_local_position.x+dx
                     self.y_local = self.vehicle_local_position.y+dy
                     self.target_heading = self.REF_YAW#self.vehicle_local_position.heading+yaw# need to see if this would work better
@@ -210,7 +211,8 @@ class OffboardControl(Node):
 
         if self.offboard_setpoint_counter == 15: ## raised delay to 1.5 s for heading to stabilitze
             self.target_heading = self.vehicle_local_position.heading
-            self.REF_YAW = self.vehicle_local_position.heading
+            self.target_heading = self.REF_YAW
+            #self.REF_YAW = self.vehicle_local_position.heading
             self.engage_offboard_mode()
             self.get_logger().info('arming drone')
             self.arm()

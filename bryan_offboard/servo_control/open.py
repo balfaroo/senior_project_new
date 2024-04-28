@@ -7,7 +7,7 @@ try:
     #while True:
     # 	servo.min()
     # 	sleep(0.5)
-    servo.value = 0.25
+    servo.value = 0.35
     sleep(0.5)
         # break
         # servo.max()

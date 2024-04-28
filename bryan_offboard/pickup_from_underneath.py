@@ -179,17 +179,18 @@ class OffboardControl(Node):
             if abs(self.vehicle_local_position.z - self.takeoff_height) < 0.05 and self.offboard_setpoint_counter < 21:
                 self.offboard_setpoint_counter += 1
                 self.get_logger().info('set servo to min')
-            if abs(self.vehicle_local_position.z - self.takeoff_height) < 0.05 and self.offboard_setpoint_counter < 31 and self.offboard_setpoint_counter >= 21:
+            if abs(self.vehicle_local_position.z - self.land_height) < 0.05 and self.offboard_setpoint_counter < 61 and self.offboard_setpoint_counter >= 21:
                 self.offboard_setpoint_counter += 1
+            elif self.offboard_setpoint_counter < 61 and self.offboard_setpoint_counter >= 21 and abs(self.vehicle_local_position.z - self.takeoff_height) < 0.02:
+                self.takeoff_height += 0.05
             
             
 
 
         if self.offboard_setpoint_counter == 20:
-            self.offboard_setpoint_counter += 1
-            self.takeoff_height = self.land_height     
+            self.offboard_setpoint_counter += 1    
 
-        if self.offboard_setpoint_counter == 30:
+        if self.offboard_setpoint_counter == 60:
             self.offboard_setpoint_counter += 1
             self.takeoff_height = -0.4  
 
