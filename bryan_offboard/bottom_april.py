@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+''' ROS2 Node for flying to a nearby object that has an AprilTag on it'''
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
@@ -12,48 +12,6 @@ import cv2
 from pupil_apriltags import Detector, Detection
 import datetime
 
-
-
-def april_horiz_distance(cx, cy, frame):
-    h_cam = 0.063
-    l_cam = 0.063
-    h_fov = 41
-    v_fov = 66
-
-    v_ang_perpx = frame.shape[0]/v_fov
-    h_ang_perpx = frame.shape[1]/h_fov
-
-    z 
-
-
-''' need to rewrite for oak camera'''
-def get_depth_coords(x_rgb, y_rgb, rgb_width, rgb_height, depth_width, depth_height):
-    RGB_FOV_HORIZONTAL = 69 # deg
-    RGB_FOV_VERITCAL = 42
-
-    DEPTH_FOV_HORIZONTAL = 87
-    DEPTH_FOV_VERTICAL = 58
-
-    # center of rgb
-    half_x = rgb_width/2
-    half_y = rgb_height/2
-
-    rgb_hz_angpp = RGB_FOV_HORIZONTAL/rgb_width
-    rgb_vt_angpp = RGB_FOV_VERITCAL/rgb_height
-
-    angle_horiz = int((x_rgb - half_x)*(rgb_hz_angpp))
-    angle_vert = int((y_rgb-half_y)*(rgb_vt_angpp))
-
-    ## center of depth
-    half_x = depth_width/2
-    half_y = depth_height/2
-
-    angle_per_depth_px_horizontal = DEPTH_FOV_HORIZONTAL/depth_width
-    angle_per_depth_px_vertical = DEPTH_FOV_VERTICAL/depth_height
-    depth_x = int(half_x + angle_horiz/angle_per_depth_px_horizontal)
-    depth_y = int(half_y + angle_vert/angle_per_depth_px_vertical)
-
-    return depth_x, depth_y
 
 class OffboardControl(Node):
     """Node for controlling a vehicle in offboard mode."""
@@ -83,6 +41,9 @@ class OffboardControl(Node):
         self.vehicle_status_subscriber = self.create_subscription(
             VehicleStatus, '/fmu/out/vehicle_status', self.vehicle_status_callback, qos_profile)
 
+        self.subscription = self.create_subscription(BottomCamera, 'bottom_camera', self.listener_callback, 10)
+
+
         # Initialize variables
         self.offboard_setpoint_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
@@ -102,13 +63,9 @@ class OffboardControl(Node):
         self.x_local = 0.0 # vars for tracking positions
         self.y_local = 0.0
 
-        self.target_heading = 0.0
-
-        self.pause_counter = 0 # pause to allow drone to geti
 
         # Create a timer to publish control commands
         self.timer = self.create_timer(0.1, self.timer_callback)
-        self.subscription = self.create_subscription(BottomCamera, 'bottom_camera', self.listener_callback, 10)
 
     # instructions provided in body frame
     def set_position_inst(self, x_b: float, y_b: float, yaw_b: float, z_b = -0.65):
@@ -126,7 +83,9 @@ class OffboardControl(Node):
 
 
     def body_to_local(self, x, y):
-        hding = self.vehicle_local_position.heading # + self.yaw_inst maybe don't need to add yaw since you haven't rotated yet
+        ''' function for converting body dx and dy commands into the PX4 local coordinate system, which is defined by
+        an x-axis aligned with North, y-axis aligned with East, and a heading angle increasing from North to East'''
+        hding = self.vehicle_local_position.heading
         return np.cos(hding)*x-np.sin(hding)*y, np.sin(hding)*x+np.cos(hding)*y
 
 
@@ -174,14 +133,14 @@ class OffboardControl(Node):
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.offboard_control_mode_publisher.publish(msg)
 
-    def publish_position_setpoint(self, x: float, y: float, z: float, delta_yaw: float): # now using x and y in body frame, using y = 0, x and y as dx and dy, yaw as delta
+    def publish_position_setpoint(self, x: float, y: float, z: float, delta_yaw: float):
         """Publish the trajectory setpoint."""
         msg = TrajectorySetpoint()
         self.x_local += x
         self.y_local += y
         # y = self.vehicle_local_position.y + y 
         msg.position = [self.x_local, self.y_local, z]
-        msg.yaw = self.target_heading + np.radians(delta_yaw) ## based on this syntax, may actually end up not using delta_yaw  != 0.0
+        msg.yaw = self.target_heading + np.radians(delta_yaw)
         msg.yaw = np.mod(msg.yaw+np.pi, 2*np.pi)-np.pi
         #msg.yaw = 1.57079  # (90 degree)
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
@@ -207,8 +166,10 @@ class OffboardControl(Node):
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.vehicle_command_publisher.publish(msg)
 
-
+    
     def get_april_horiz_distance(self, cx, cy):
+        '''function for getting the distance between the bottom camera and the object. This was written when we
+        were still using the camera that was angled at 45 degrees'''
         h_cam = 0.063
         l_cam = 0.063
         h_fov = 41
@@ -216,9 +177,6 @@ class OffboardControl(Node):
 
         ncols = 720
         nrows = 1280
-
-        # v_ang_perpx = frame.shape[0]/v_fov
-        # h_ang_perpx = frame.shape[1]/h_fov
 
         v_ang_perpx = v_fov/nrows
         h_ang_perpx =  h_fov/ncols
@@ -231,14 +189,12 @@ class OffboardControl(Node):
 
         alpha_h = (cx-ncols/2)*h_ang_perpx
         alpha_v = -(cy-nrows/2)*v_ang_perpx
-
-        # print('alpha h ', alpha_h)
-        # print('alpha v ', alpha_v)
+)
         
-        if z_leg: # for now just checking dx and dy
+        if z_leg<0.1: 
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
-            dy = z_cam*np.tan(np.radians(45+alpha_h))-l_cam
+            dy = z_cam*np.tan(np.radians(alpha_h))-l_cam
             
         else: # clipping to only go down by 10 cm increments
 
@@ -246,17 +202,17 @@ class OffboardControl(Node):
             z_cam = z_leg+h_cam
 
             dx = z_cam*np.tan(np.radians(45+alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
-            dy = z_cam*np.tan(np.radians(45+alpha_h))-l_cam
+            dy = z_cam*np.tan(np.radians(alpha_h))-l_cam
 
-            # do the calculations as if we were only 10 cm in the air
-
-        # print('dx ', dx, ' dy ', dy)
-            
+    
 
         return dx, dy
 
+
+    
     def listener_callback(self, msg):
-        if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02: # only move once at the appropriate heigt
+        ''' callback function for bottom camera '''
+        if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02: # only move once at the appropriate height
             if msg.found:
                 dx, dy = self.get_april_horiz_distance(msg.cx, msg.cy)
                 print('body dx, dy: ', dx, dy)
@@ -283,26 +239,9 @@ class OffboardControl(Node):
             self.arm()
 
 
-        elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: # needed so that it stays hovering even when close
+        elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: 
             self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, self.target_heading)
         
-
-        # elif abs(self.vehicle_local_position.z - self.takeoff_height) > 0.02 and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-        #     self.publish_position_setpoint(0.0, 0.0, self.takeoff_height, self.target_heading)
-
-        # elif abs(self.vehicle_local_position.z - self.takeoff_height) >= 0.02 and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.offboard_setpoint_counter < 40:
-        #     self.publish_position_setpoint(0.0, 0.0, self.takeoff_height)
-        #     self.offboard_setpoint_counter += 1 # hover for 3 sec
-
-        # elif self.dist_to_april == 0.0 or self.dist_to_april > 1.5 and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-        #     self.publish_position_setpoint(self.forward_step_size, 0.0, self.takeoff_height)
-      
-        # elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-        #     self.move_as_commanded()
-
-        # elif self.dist_to_april <= 1.5 and self.dist_to_april != 0.0:
-        #     self.land()
-        #     exit(0)
 
         if self.offboard_setpoint_counter < 16:
             self.offboard_setpoint_counter += 1
@@ -310,10 +249,6 @@ class OffboardControl(Node):
 
 
 def main(args=None) -> None:
-    rgb_width = 640
-    rgb_height = 480
-    depth_width = 640
-    depth_height = 480
 
     print('Starting offboard control node...')
     rclpy.init(args=args)

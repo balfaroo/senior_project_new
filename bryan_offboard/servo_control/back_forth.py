@@ -1,3 +1,4 @@
+'''script for moving claw between open and closed positions'''
 from gpiozero import Servo
 from time import sleep
 
@@ -9,8 +10,5 @@ try:
         sleep(0.5)
         servo.value = 0.25
         sleep(0.5)
-        #servo.max()
-    print('servo in min position')
-    #sleep(0.5)
 except KeyboardInterrupt:
     print("Program stopped")

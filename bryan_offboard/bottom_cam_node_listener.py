@@ -1,3 +1,4 @@
+'''implementation of a listener node for messages from the bottom camera that allows for testing'''
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
@@ -26,11 +27,13 @@ class Listner(Node):
             VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
 
     def listener_callback(self, msg):
+        ''' call back function for bottom camera '''
         if msg.found:
             dx,dy = self.get_april_horiz_distance(msg.cx, msg.cy)
             print(dx, dy)
 
     def get_april_horiz_distance(self, cx, cy):
+        ''' function to get object distance, implemented with a fully downward-facing camera '''
         h_cam = 0.083
         l_cam = 0.084
         h_fov = 41
@@ -39,8 +42,6 @@ class Listner(Node):
         ncols = 720
         nrows = 1280
 
-        # v_ang_perpx = frame.shape[0]/v_fov
-        # h_ang_perpx = frame.shape[1]/h_fov
 
         v_ang_perpx = v_fov/nrows
         h_ang_perpx =  h_fov/ncols
@@ -58,7 +59,8 @@ class Listner(Node):
         print('alpha h ', alpha_h)
         print('alpha v ', alpha_v)
         
-        if z_leg: # for now just checking dx and dy
+        if z_leg: # for now just checking dx and dy. If determining increments is desired, this can be done by changing
+            # the if statement fo if z_leg < <Threshold>
 
             dx = z_cam*np.tan(np.radians(alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(alpha_h))
@@ -70,11 +72,6 @@ class Listner(Node):
 
             dx = z_cam*np.tan(np.radians(alpha_v))-l_cam  # alpha_v b/c x for the drone is forward/up in the picture 
             dy = z_cam*np.tan(np.radians(alpha_h))-l_cam
-
-            # do the calculations as if we were only 10 cm in the air
-
-        # print('dx ', dx, ' dy ', dy)
-            
 
         return dx, dy
 

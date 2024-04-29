@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+''' implementation for a node that subscribed to the depth camera topic to drop off the target object '''
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
@@ -41,51 +41,35 @@ class OffboardControl(Node):
             VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
         self.vehicle_status_subscriber = self.create_subscription(
             VehicleStatus, '/fmu/out/vehicle_status', self.vehicle_status_callback, qos_profile)
+        self.subscription_depth = self.create_subscription(DepthCamera, 'depth_camera', self.depth_listener_callback, 10)
+
 
         # Initialize variables
         self.offboard_setpoint_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
-        self.takeoff_height = -0.45 # raised from -0.4 and 0.55 increase back to 0.65 once drift issue figured out
-        self.april_spotted = False
-        self.dist_to_april = 0.0
-        self.forward_dist = 0.0
-        self.forward_step_size = 0.1
-        self.initial_heading = 0.0
-        self.last_yaw_positive = True
+        self.takeoff_height = -0.45
 
-        self.dx_inst = 0.0 # local x north, y east. body x forward, y right. need to convert with heading. these coordinates are in body fram
-        self.dy_inst = 0.0
-        self.yaw_inst = 0.0
-        self.z_inst = 0.0
+        self.last_yaw_positive = True
 
         self.x_local = 0.0 # vars for tracking positions
         self.y_local = 0.0 
 
-        self.x_local_old = 0.0 # old positions
-        self.y_local_old = 0.0
-
         self.target_heading = 0.0
-        self.land = False
+
         self.armed = False
-        self.pause_counter = 0 # pause to allow drone to geti
 
         # Create a timer to publish control commands
         self.timer = self.create_timer(0.1, self.timer_callback)
-        self.subscription_depth = self.create_subscription(DepthCamera, 'depth_camera', self.depth_listener_callback, 10)
-
+        
+        # hard coded an angle to stop yaw deviations
         self.REF_YAW = np.radians(277.0)
     
-    
-    def set_distance_to_april(self, dist: float):
-        self.dist_to_april = dist
-    
-    def set_detection(self, detected: bool):
-        self.april_spotted = detected
-
 
     def body_to_local(self, x, y):
-        hding = self.vehicle_local_position.heading # + self.yaw_inst maybe don't need to add yaw since you haven't rotated yet
+        ''' function for converting body dx and dy commands into the PX4 local coordinate system, which is defined by
+        an x-axis aligned with North, y-axis aligned with East, and a heading angle increasing from North to East'''
+        hding = self.vehicle_local_position.heading
         return np.cos(hding)*x-np.sin(hding)*y, np.sin(hding)*x+np.cos(hding)*y
 
 
@@ -134,15 +118,13 @@ class OffboardControl(Node):
         self.offboard_control_mode_publisher.publish(msg)
 
 
-    # for now this is fine since hardcoding a 90 degree turn, but would need to add an argument for yaw in future
-    def publish_position_setpoint(self, x: float, y: float, z: float, delta_yaw: float): # now using x and y in body frame, using y = 0, x and y as dx and dy, yaw as delta
+
+    def publish_position_setpoint(self, x: float, y: float, z: float, yaw: float): 
         """Publish the trajectory setpoint."""
         msg = TrajectorySetpoint()
-        # y = self.vehicle_local_position.y + y 
         msg.position = [x, y, z]
-        msg.yaw = delta_yaw #self.target_heading + np.radians(delta_yaw) ## based on this syntax, may actually end up not using delta_yaw  != 0.0 not doing a delta yaw anymore        
-        msg.yaw = np.mod(msg.yaw+np.pi, 2*np.pi)-np.pi
-        #msg.yaw = 1.57079  # (90 degree)
+        msg.yaw = yaw        
+        msg.yaw = np.mod(msg.yaw+np.pi, 2*np.pi)-np.pi # clipping to [-pi, pi]
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher.publish(msg)
         if x == 0.0 and y == 0.0:
@@ -168,41 +150,40 @@ class OffboardControl(Node):
         self.vehicle_command_publisher.publish(msg)
 
     def depth_listener_callback(self, msg):
-
-        if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02 and self.depth_tracking: # only move once at the appropriate height and if not tracking by the bottom camera
+            
+        if abs(self.vehicle_local_position.z-self.takeoff_height) < 0.02: # only move once at the appropriate height
             if msg.spotted:
                 dx = msg.dx/1000
-                dy = msg.dy/1000
+                dy = msg.dy/1000 # currently using the indexing method
                 self.get_logger().info(f"detected front dx, dy as {[dx, dy]}")
                 yaw = np.radians(msg.yaw)
+
+                # in case the drone yaws too much and loses sight, this is to tell it to yaw back in the correct direction. unused currently since just hard coding
+                # a heading
                 if yaw > 0.0:
                     self.last_yaw_positive = True
                 else:
                     self.last_yaw_positive = False
 
-                if (dx>2.0 or (dx == 0.0 and dy ==0.0)):
-                    dx, dy = self.body_to_local(min(0.1, abs(2.0-dx)), -np.sign(dy)*min(0.1,abs(dy))) # dy needs to be small, for now will run it so that it is
+                if (dx>2.0 or (dx == 0.0 and dy ==0.0)): # sometimes returns dx and dy 0.0 if too far
+                    dx, dy = self.body_to_local(min(0.1, abs(2.0-dx)), -np.sign(dy)*min(0.1,abs(dy))) # clipping step size so that drone moves slowly
                     self.x_local = self.vehicle_local_position.x+dx
                     self.y_local = self.vehicle_local_position.y+dy
-                    self.target_heading = self.REF_YAW#self.vehicle_local_position.heading+yaw# need to see if this would work better
+                    self.target_heading = self.REF_YAW # remove when not hard coding
                     self.target_heading = np.mod(self.target_heading+np.pi, 2*np.pi)-np.pi
-                    #self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
 
                 elif dx<=2.0 and abs(dy < 0.05):
-                    #self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
-                    self.get_logger().info('DROP OBJECT')
+                    self.get_logger().info('DROP OBJECT') # need to run code for servo in another terminal
                 elif dx <= 2.0:
-                    self.x_local = self.vehicle_local_position.x_local
-                    self.y_local = self.vehicle_local_position.y+dy
+                    self.x_local = self.vehicle_local_position.x # stay at this distance, only move laterally to be in front of tag
+                    self.y_local = self.vehicle_local_position.y+dy 
 
             else:
                 if self.last_yaw_positive:
                     self.target_heading = self.vehicle_local_position.heading - np.radians(5)
                 else:
                     self.target_heading = self.vehicle_local_position.heading + np.radians(5)
-                self.target_heading = self.REF_YAW #np.mod(self.target_heading+np.pi, 2*np.pi)-np.pi
-                #self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)                
-
+                self.target_heading = self.REF_YAW # remove this line if not hard coding heading anymore
   
 
     def timer_callback(self) -> None:
@@ -212,17 +193,15 @@ class OffboardControl(Node):
         if self.offboard_setpoint_counter == 15: ## raised delay to 1.5 s for heading to stabilitze
             self.target_heading = self.vehicle_local_position.heading
             self.target_heading = self.REF_YAW
-            #self.REF_YAW = self.vehicle_local_position.heading
             self.engage_offboard_mode()
             self.get_logger().info('arming drone')
             self.arm()
             self.offboard_setpoint_counter+=1
 
 
-        elif self.armed and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: # needed so that it stays hovering even when close
+        elif self.armed and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
             self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
-        
-
+    
        
         if self.offboard_setpoint_counter < 16:
             self.offboard_setpoint_counter += 1

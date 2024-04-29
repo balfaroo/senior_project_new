@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+''' node for telling the drone to go straight up and down to pick up the object to demonstrate functionality '''
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
@@ -58,18 +58,11 @@ class OffboardControl(Node):
         self.timer = self.create_timer(0.1, self.timer_callback)
 
     
-    
     def set_distance_to_april(self, dist: float):
         self.dist_to_april = dist
     
     def set_detection(self, detected: bool):
         self.april_spotted = detected
-
-
-    def body_to_local(self, x, y):
-        hding = self.vehicle_local_position.heading # + self.yaw_inst maybe don't need to add yaw since you haven't rotated yet
-        return np.cos(hding)*x-np.sin(hding)*y, np.sin(hding)*x+np.cos(hding)*y
-
 
     def vehicle_local_position_callback(self, vehicle_local_position):
         """Callback function for vehicle_local_position topic subscriber."""
@@ -116,15 +109,12 @@ class OffboardControl(Node):
         self.offboard_control_mode_publisher.publish(msg)
 
 
-    # for now this is fine since hardcoding a 90 degree turn, but would need to add an argument for yaw in future
-    def publish_position_setpoint(self, x: float, y: float, z: float, delta_yaw: float): # now using x and y in body frame, using y = 0, x and y as dx and dy, yaw as delta
+    def publish_position_setpoint(self, x: float, y: float, z: float, yaw: float): 
         """Publish the trajectory setpoint."""
         msg = TrajectorySetpoint()
-        # y = self.vehicle_local_position.y + y 
         msg.position = [x, y, z]
-        msg.yaw = delta_yaw #self.target_heading + np.radians(delta_yaw) ## based on this syntax, may actually end up not using delta_yaw  != 0.0 not doing a delta yaw anymore        
+        msg.yaw = yaw        
         msg.yaw = np.mod(msg.yaw+np.pi, 2*np.pi)-np.pi
-        #msg.yaw = 1.57079  # (90 degree)
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher.publish(msg)
         if x == 0.0 and y == 0.0:
@@ -149,17 +139,6 @@ class OffboardControl(Node):
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.vehicle_command_publisher.publish(msg)
 
-    def move_as_commanded(self):
-        local_dx, local_dy, local_yaw = self.body_to_local()
-        msg = TrajectorySetpoint()
-        msg.position = [local_dx + self.x_local, local_dy + self.y_local, self.z_inst] # could potentially be better to just do vehicle_local_position.x or .y
-        msg.yaw = local_yaw
-        self.x_local += local_dx
-        self.y_local += local_dy
-        msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
-        self.trajectory_setpoint_publisher.publish(msg)
-        #self.get_logger().info(f"Publishing position setpoints {[self.x_local, self.y_local, self.takeoff_height, np.degrees(local_yaw)]}")
-
 
     def timer_callback(self) -> None:
         """Callback function for the timer."""
@@ -174,18 +153,15 @@ class OffboardControl(Node):
             self.arm()
 
 
-        elif self.armed and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: # needed so that it stays hovering even when close
+        elif self.armed and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD: 
             self.publish_position_setpoint(self.x_local, self.y_local, self.takeoff_height, self.target_heading)
             if abs(self.vehicle_local_position.z - self.takeoff_height) < 0.05 and self.offboard_setpoint_counter < 21:
                 self.offboard_setpoint_counter += 1
-                self.get_logger().info('set servo to min')
+                self.get_logger().info('close servo') # tells user to run servo control code
             if abs(self.vehicle_local_position.z - self.land_height) < 0.05 and self.offboard_setpoint_counter < 61 and self.offboard_setpoint_counter >= 21:
                 self.offboard_setpoint_counter += 1
             elif self.offboard_setpoint_counter < 61 and self.offboard_setpoint_counter >= 21 and abs(self.vehicle_local_position.z - self.takeoff_height) < 0.02:
                 self.takeoff_height += 0.05
-            
-            
-
 
         if self.offboard_setpoint_counter == 20:
             self.offboard_setpoint_counter += 1    

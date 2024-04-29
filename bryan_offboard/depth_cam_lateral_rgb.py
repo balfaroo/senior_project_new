@@ -1,3 +1,7 @@
+'''implementation of a node that publishes messages from the depth camera. this implementation
+supports either method of computing lateral depth, since the messages will contain the dy 
+obtained by indexing into the depth image, as well as the coordinates of the apriltag center,
+which are required for the trigonometric implementation. '''
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
@@ -10,6 +14,8 @@ import depthai as dai
 import time
 
 def get_depth_coords(x_rgb, y_rgb, rgb_width = 640, rgb_height = 480, depth_width = 640, depth_height = 400):
+    '''function for converting x and y coordinates in a color image to coordinates in a depth image that look
+    at the same point in space '''
     RGB_FOV_HORIZONTAL = 50 # deg
     RGB_FOV_VERITCAL = 38
 
@@ -20,7 +26,7 @@ def get_depth_coords(x_rgb, y_rgb, rgb_width = 640, rgb_height = 480, depth_widt
     half_x = rgb_width/2
     half_y = rgb_height/2
 
-    rgb_hz_angpp = RGB_FOV_HORIZONTAL/rgb_width
+    rgb_hz_angpp = RGB_FOV_HORIZONTAL/rgb_width # computing angles per pixel
     rgb_vt_angpp = RGB_FOV_VERITCAL/rgb_height
 
     angle_horiz = int((x_rgb - half_x)*(rgb_hz_angpp))
@@ -40,7 +46,6 @@ def get_depth_coords(x_rgb, y_rgb, rgb_width = 640, rgb_height = 480, depth_widt
 
 
 class DepthCameraNode(Node):
-    """Node for controlling a vehicle in offboard mode."""
 
     def __init__(self) -> None:
         super().__init__('depth_camera')
@@ -59,21 +64,32 @@ class DepthCameraNode(Node):
         self.msg.dy = 0.0
         self.msg.yaw = 0.0
         self.msg.spotted = False
-        self.timer = self.create_timer(0.1, self.timer_callback)
+        # this timer is needed because we found that without it, rclpy.spin_once() does not exit
+        # and the main lopp never repeats
+        self.timer = self.create_timer(0.1, self.timer_callback) 
     
     def set_message(self, msg):
+        '''function for updating the stored message instance variable '''
         self.msg = msg
 
     def timer_callback(self):
+
         self.publisher.publish(self.msg)
 
 
 def main(args = None):
     rclpy.init(args = args)
 
+    # initialization
     node = DepthCameraNode()
     msg = DepthCamera()
     stepSize = 0.05
+
+    '''
+    following code is mainly provided by Luxonis/DepthAI, computes the depth at a region of interest.
+    we have modified the code to change the region of interest based on where an apriltag is detected in 
+    the rgb image.
+    '''
 
     newConfig = False
 
@@ -105,7 +121,6 @@ def main(args = None):
     monoRight.setCamera("right")
 
 
-    camRgb.setPreviewSize(640, 480)
     stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
     stereo.setLeftRightCheck(True)
     stereo.setSubpixel(True)
@@ -120,6 +135,8 @@ def main(args = None):
     topLeft = dai.Point2f(0.4, 0.4)
     bottomRight = dai.Point2f(0.6, 0.6)
 
+
+    ### values obtained from the camera
     cx = 331.85198975
     cy = 247.21032715
     fx = 509.9508667
@@ -128,6 +145,7 @@ def main(args = None):
 
     L_paper/=1000
 
+    # apriltag detector instance
     detector = Detector(
             families="tag36h11",
             nthreads=1,
@@ -165,7 +183,8 @@ def main(args = None):
         depthQueue = device.getOutputQueue(name="depth", maxSize=1, blocking=False)
         spatialCalcQueue = device.getOutputQueue(name="spatialData", maxSize=1, blocking=False)
         spatialCalcConfigInQueue = device.getInputQueue("spatialCalcConfig")
-        qRgb = device.getOutputQueue(name="rgb", maxSize=1, blocking=False) #maxsize changed to 1 from 4
+        qRgb = device.getOutputQueue(name="rgb", maxSize=1, blocking=False) # maxsize changed to 1 from 4 to see if
+                                                                            # images would process quicker
 
         color = (255, 255, 255)
 
@@ -177,14 +196,11 @@ def main(args = None):
             msg.yaw = 0.0
             msg.cx = -1.0
             msg.cy = -1.0
-            # print('looped')
             inDepth = depthQueue.get() # Blocking call, will wait until a new data has arrived
 
             depthFrame = inDepth.getFrame() # depthFrame values are in millimeters
-            # print('i think its stuck here')
             inRgb = qRgb.get()
             inRgb = inRgb.getCvFrame()  
-            # print('got past')
             depth_downscaled = depthFrame[::4]
             if np.all(depth_downscaled == 0):
                 min_depth = 0  # Set a default minimum depth value when all elements are zero
@@ -198,21 +214,18 @@ def main(args = None):
             gray = cv2.cvtColor(inRgb, cv2.COLOR_RGB2GRAY) 
             detections = detector.detect(gray, estimate_tag_pose=True, camera_params=[fx, fy, cx, cy], tag_size=L_paper)
             for d in detections:
-                if d.tag_id != 0:
+                if d.tag_id != 0: # only searching for a specific tag
                     continue
-                cv2.imwrite('depthrgb.png', inRgb)
+                cv2.imwrite('depthrgb.png', inRgb) # saving for reference
                 center = d.center
                 cx = center[0]
                 cy = center[1]
                 msg.cx = cx
                 msg.cy = cy
                 dx, dy = get_depth_coords(cx, cy)
-                # print('cx pcnt dif ', abs(cx-inRgb.shape[1]/2)/(inRgb.shape[1]/2))
-                #print(center)
-                close = True #abs(cx-inRgb.shape[1]/2)/(inRgb.shape[1]/2) <= 0.1 and abs(cy-inRgb.shape[0]/2)/(inRgb.shape[0]/2) <= 0.1
-                # print(depthFrameColor.shape)
+                close = True # used to do testing only if apriltag was in center of the image, could be useful when yawing
+                             # to see how much more the drone needs yaw
                 if close:
-                    #print('close')
                     newConfig = True
                     for depthData in spatialData:
                         roi = depthData.config.roi
@@ -227,26 +240,22 @@ def main(args = None):
 
                         topLeft = dai.Point2f(dx - 5, dy-5)  ## getting depth of middle of frame if apriltag is there
                         bottomRight = dai.Point2f(dx+5, dy+5)
-                        xmin = -5
-                        xmax = 5
-                        ymin = -5
-                        ymax = 5
 
                         depthMin = depthData.depthMin
                         depthMax = depthData.depthMax
-                        msg.dx = depthData.spatialCoordinates.z
+                        msg.dx = depthData.spatialCoordinates.z # coordinate systems determined by running code and testing
                         msg.dy = depthData.spatialCoordinates.x
                         msg.spotted = True
                         print(msg.dx, msg.dy)
 
                         pose_R = d.pose_R
                         try:
-                            msg.yaw = -np.degrees(np.arcsin(pose_R[0][2])) ## this the one chief]
+                            msg.yaw = -np.degrees(np.arcsin(pose_R[0][2])) # angle b/w drone and paper
                         except:
                             msg.yaw = 0.0
-                    # Show the frame
 
                     if newConfig:
+                        # update depth region of interest
                         config.roi = dai.Rect(topLeft, bottomRight)
                         config.calculationAlgorithm = calculationAlgorithm
                         cfg = dai.SpatialLocationCalculatorConfig()
@@ -256,7 +265,8 @@ def main(args = None):
             node.set_message(msg)
             rclpy.spin_once(node)
             
-            #time.sleep(0.3)
+            # time.sleep(0.3) <-- design choice for the future, can introduce a forced delay to change
+            # how fast depth camera messages publish compared to bottom camera messages
 
 
 if __name__ == '__main__':
